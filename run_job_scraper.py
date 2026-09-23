@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
+import os
 import pandas as pd
 
 # ==========================================
@@ -224,43 +225,38 @@ class SmalsScraper(BaseScraper):
 
 
 # ==========================================
-# 2. PIPELINE EXECUTION & LOCAL CSV OUTPUT
+# 2. INCREMENTAL PIPELINE EXECUTION
 # ==========================================
 def run_pipeline():
-    # Instantiate all 14 scrapers
     scrapers = [
-        CegekaScraper(),
-        CapgeminiScraper(),
-        OrdinaScraper(),
-        CronosScraper(),
-        DelawareScraper(),
-        InetumScraper(),
-        SopraSteriaScraper(),
-        AkkodisScraper(),
-        EvidenAtosScraper(),
-        CGIScraper(),
-        TalanScraper(),
-        PauwelsConsultingScraper(),
-        CreamConsultingScraper(),
-        SmalsScraper()
+        CegekaScraper(), CapgeminiScraper(), OrdinaScraper(), CronosScraper(),
+        DelawareScraper(), InetumScraper(), SopraSteriaScraper(), AkkodisScraper(),
+        EvidenAtosScraper(), CGIScraper(), TalanScraper(), PauwelsConsultingScraper(),
+        CreamConsultingScraper(), SmalsScraper()
     ]
     
-    all_jobs = []
+    new_jobs = []
     for scraper in scrapers:
         try:
             jobs = scraper.fetch_jobs()
-            print(f"Fetched {len(jobs)} jobs from {scraper.company_name}")
-            all_jobs.extend(jobs)
+            new_jobs.extend(jobs)
         except Exception as e:
             print(f"Error fetching from {scraper.company_name}: {e}")
             
-    # Convert to pandas DataFrame
-    df = pd.DataFrame(all_jobs)
-    
-    # Save locally as a CSV file (replaces the Dataiku dataset write)
+    new_df = pd.DataFrame(new_jobs)
     output_filename = "job_market_matches.csv"
-    df.to_csv(output_filename, index=False)
-    print(f"Successfully wrote {len(df)} total jobs to local file: {output_filename}")
+    
+    # Incremental load logic: if file exists, append and drop duplicates based on title and company
+    if os.path.exists(output_filename):
+        existing_df = pd.read_csv(output_filename)
+        combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        # Drop duplicates if a job with the same title and company already exists
+        combined_df.drop_duplicates(subset=["title", "company", "url"], keep="first", inplace=True)
+        combined_df.to_csv(output_filename, index=False)
+        print(f"Incrementally updated {output_filename}. Total rows now: {len(combined_df)}")
+    else:
+        new_df.to_csv(output_filename, index=False)
+        print(f"Created new {output_filename} with {len(new_df)} rows.")
 
 if __name__ == "__main__":
     run_pipeline()

@@ -2,7 +2,7 @@ name: Job Scraper Automation
 
 on:
   schedule:
-    - cron: '0 8,16,20 * * *' # Runs at 8:00 AM and 8:00 PM UTC every day
+    - cron: '0 8,20 * * *' # Runs at 8:00 AM and 8:00 PM UTC every day
   workflow_dispatch: # Allows manual trigger anytime
 
 jobs:
@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Crucial: fetches full history so git pull/rebase works properly
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -31,7 +33,8 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main || git checkout -b main
           git pull origin main --rebase
           git add job_market_matches.csv
           git diff --staged --quiet || git commit -m "Auto-update job_market_matches.csv [skip ci]"
-          git push
+          git push origin main

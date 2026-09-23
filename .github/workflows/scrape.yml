@@ -15,7 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Crucial: fetches full history so git pull/rebase works properly
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -29,12 +29,14 @@ jobs:
       - name: Run scraper script
         run: python run_job_scraper.py
 
-      - name: Commit and push updated CSV if changes exist
+      - name: Commit and push updated CSV
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git fetch origin main
           git checkout main || git checkout -b main
-          git pull origin main --rebase
+          git pull origin main --rebase --autostash
           git add job_market_matches.csv
           git diff --staged --quiet || git commit -m "Auto-update job_market_matches.csv [skip ci]"
           git push origin main

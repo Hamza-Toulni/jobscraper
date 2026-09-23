@@ -1,46 +1,47 @@
-name: Job Search Agent
+name: Job Scraper Automation
 
 on:
   schedule:
-    - cron: "0 7 * * *"
-    - cron: "0 19 * * *"
+    - cron: '0 8,20 * * *'
   workflow_dispatch:
 
+# Prevent two scraper runs from pushing at the same time
 concurrency:
-  group: job-search-agent
+  group: job-scraper
   cancel-in-progress: false
 
 permissions:
   contents: write
 
 jobs:
-  search:
+  run-scraper:
     runs-on: ubuntu-latest
 
     steps:
 
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: main
 
+      # 2. Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
+      # 3. Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
+          pip install pandas requests
 
-      - name: Run job scraper
-        run: |
-          python main.py
+      # 4. Run scraper
+      - name: Run scraper script
+        run: python run_job_scraper.py
 
+      # 5. Commit changes
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
@@ -48,18 +49,20 @@ jobs:
 
           git add job_market_matches.csv
 
-          if git diff --cached --quiet; then
+          if git diff --staged --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
           git commit -m "Auto-update job_market_matches.csv [skip ci]"
 
-      - name: Update local branch
+      # 6. Get latest version of main
+      - name: Synchronize with remote
         run: |
           git fetch origin main
           git rebase origin/main
 
+      # 7. Push changes
       - name: Push changes
         run: |
           git push origin HEAD:main

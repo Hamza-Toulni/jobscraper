@@ -1,0 +1,66 @@
+name: Job Scraper Automation
+
+on:
+  schedule:
+    - cron: '0 8,20 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: job-scraper
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests
+
+      - name: Sync with remote before running
+        run: |
+          git fetch origin main
+          git rebase origin/main
+
+      - name: Run scraper script
+        run: python run_job_scraper.py
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add job_market_matches.csv
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto-update job_market_matches.csv [skip ci]"
+
+      - name: Push changes (with retry)
+        run: |
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              echo "Push succeeded on attempt $i"
+              exit 0
+            fi
+            echo "Push attempt $i failed, retrying..."
+            git rebase --abort 2>/dev/null || true
+            sleep $((RANDOM % 10 + 5))
+          done
+          echo "All push attempts failed"
+          exit 1

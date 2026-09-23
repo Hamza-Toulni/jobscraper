@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -54,7 +55,7 @@ jobs:
 
           git commit -m "Auto-update job_market_matches.csv [skip ci]"
 
-      - name: Synchronize with remote
+      - name: Update local branch
         run: |
           git fetch origin main
           git rebase origin/main

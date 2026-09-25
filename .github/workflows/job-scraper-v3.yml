@@ -1,15 +1,82 @@
 name: Job Scraper V3
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  schedule:
+    # Run every 4 hours
+    - cron: "0 */4 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: job-scraper-v3
+  cancel-in-progress: false
 
 jobs:
-  test-v3:
+  run-scraper:
     runs-on: ubuntu-latest
 
     steps:
-      - name: V3 registration test
-        run: echo "Job Scraper V3 is registered correctly"
+      # 1. Download repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Install Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 3. Install scraper dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r V3/requirements.txt
+
+      # 4. Run the actual V3 scraper
+      - name: Run V3 scraper
+        working-directory: V3
+        run: python run_job_scraper.py
+
+      # 5. Check whether the scraper produced results
+      - name: Inspect scraper result
+        run: |
+          if [ -f V3/job_market_matches.csv ]; then
+            echo "CSV created successfully."
+            echo ""
+            echo "Number of lines:"
+            wc -l V3/job_market_matches.csv
+            echo ""
+            echo "First results:"
+            head -n 10 V3/job_market_matches.csv
+          else
+            echo "No CSV was created."
+            echo "The scraper may have found no verified matching vacancies."
+          fi
+
+      # 6. Commit new/updated job results to GitHub
+      - name: Commit results
+        run: |
+          if [ ! -f V3/job_market_matches.csv ]; then
+            echo "No CSV to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add V3/job_market_matches.csv
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update V3 job matches"
+
+          git pull --rebase origin main
+
+          git push origin HEAD:main

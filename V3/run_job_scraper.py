@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 
 
 # ============================================================
-# CONFIGURATION
+# CONFIG
 # ============================================================
 
 OUTPUT = "job_market_matches.csv"
@@ -22,26 +22,34 @@ SOURCES = [
         "company": "Cegeka",
         "url": "https://www.cegeka.com/en/be/jobs/all-jobs",
         "domain": "cegeka.com",
+        "type": "cegeka",
     },
     {
         "company": "Capgemini",
-        "url": "https://www.capgemini.com/careers/join-capgemini/job-search/?country_code=en-be&country_name=Belgium&size=100",
+        "url": (
+            "https://www.capgemini.com/careers/join-capgemini/"
+            "job-search/?country_code=en-be&country_name=Belgium&size=100"
+        ),
         "domain": "capgemini.com",
+        "type": "capgemini",
     },
     {
         "company": "Akkodis",
-        "url": "https://www.akkodis.com/en-be/careers/jobs",
+        "url": "https://www.akkodis.com/en-be/careers",
         "domain": "akkodis.com",
+        "type": "akkodis",
     },
     {
         "company": "Pauwels Consulting",
-        "url": "https://www.pauwelsconsulting.com/en/jobs/",
+        "url": "https://www.pauwelsconsulting.com/jobs",
         "domain": "pauwelsconsulting.com",
+        "type": "pauwels",
     },
     {
         "company": "Smals",
         "url": "https://www.smals.be/nl/jobs/list",
         "domain": "smals.be",
+        "type": "smals",
     },
 ]
 
@@ -53,22 +61,26 @@ SOURCES = [
 FAMILIES = {
     "HR Data / People Analytics": [
         "hr data analyst",
+        "hr data analist",
         "hr analytics",
         "people analytics",
         "workforce analytics",
         "hris analyst",
         "hr reporting",
+        "people data",
     ],
 
     "Data Analyst": [
         "data analyst",
+        "data analist",
         "data analytics analyst",
         "analytics analyst",
-        "senior data analyst",
+        "data pipeline analyst",
     ],
 
     "BI / Power BI": [
         "bi analyst",
+        "bi analist",
         "bi developer",
         "business intelligence analyst",
         "business intelligence developer",
@@ -78,14 +90,14 @@ FAMILIES = {
 
     "Data Governance / Quality": [
         "data governance",
-        "data quality analyst",
-        "data quality specialist",
-        "data quality expert",
+        "data quality",
         "data steward",
+        "master data",
     ],
 
     "Reporting": [
         "reporting analyst",
+        "reporting analist",
         "reporting developer",
         "reporting specialist",
     ],
@@ -94,33 +106,38 @@ FAMILIES = {
         "data consultant",
         "analytics consultant",
         "bi consultant",
+        "business intelligence consultant",
     ],
 
     "Functional / Business Data Analysis": [
-        "functional analyst – data",
-        "functional analyst - data",
-        "functional analyst data",
         "data functional analyst",
-        "business analyst – data",
-        "business analyst - data",
+        "functional data analyst",
+        "functional analyst data",
+        "functional analyst - data",
+        "functional analyst – data",
         "business data analyst",
+        "business analyst data",
+        "business analyst - data",
+        "business analyst – data",
+        "business analyst data & analytics",
+        "business analyst – data & analytics",
+        "business analyst - data & analytics",
     ],
 }
 
 
-# Stretch jobs:
-# We still collect them, but score them more cautiously.
-
 STRETCH = [
     "data engineer",
+    "data engineering",
     "etl developer",
     "etl engineer",
     "data warehouse developer",
+    "datawarehouse developer",
 ]
 
 
 # ============================================================
-# USER PROFILE
+# USER PROFILE / SCORING
 # ============================================================
 
 SKILLS = {
@@ -128,6 +145,7 @@ SKILLS = {
     "power bi": 12,
     "etl": 10,
     "data warehouse": 9,
+    "datawarehouse": 9,
     "data quality": 8,
     "data governance": 8,
     "python": 5,
@@ -136,11 +154,10 @@ SKILLS = {
     "reporting": 5,
     "hr analytics": 7,
     "people analytics": 7,
+    "data modeling": 6,
+    "data modelling": 6,
 }
 
-
-# Technologies that can indicate a potential skill gap.
-# Mentioning them does not automatically reject the vacancy.
 
 GAP_SKILLS = [
     "databricks",
@@ -148,7 +165,6 @@ GAP_SKILLS = [
     "microsoft fabric",
     "snowflake",
     "tableau",
-    "azure",
     "collibra",
     "informatica",
     "purview",
@@ -159,36 +175,38 @@ GAP_SKILLS = [
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 "
-        "(Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 "
-        "(KHTML, like Gecko) "
-        "Chrome/149 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/149.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;"
+        "q=0.9,image/avif,image/webp,*/*;q=0.8"
     ),
     "Accept-Language": "en-US,en;q=0.9,nl;q=0.8,fr;q=0.7",
 }
 
 
-S = requests.Session()
-S.headers.update(HEADERS)
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
 
 
 # ============================================================
-# BASIC HELPERS
+# HELPERS
 # ============================================================
 
-def clean(x):
-    return re.sub(r"\s+", " ", str(x or "")).strip()
+def clean(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
-def norm(u, base):
-    u = urljoin(base, u)
-    u, _ = urldefrag(u)
-    return u.rstrip("/")
+def normalize_url(url, base):
+    url = urljoin(base, url)
+    url, _ = urldefrag(url)
+    return url.rstrip("/")
 
 
-def same(u, domain):
-    host = urlparse(u).netloc.lower()
+def host_matches(url, domain):
+    host = urlparse(url).netloc.lower()
 
     return (
         host == domain
@@ -196,96 +214,160 @@ def same(u, domain):
     )
 
 
-def fetch(u):
-    r = S.get(
-        u,
-        timeout=25,
-        allow_redirects=True,
-    )
+def fetch(url, retries=3):
 
-    r.raise_for_status()
+    for attempt in range(retries):
 
-    content_type = r.headers.get(
-        "content-type",
-        "",
-    ).lower()
+        try:
+            response = SESSION.get(
+                url,
+                timeout=30,
+                allow_redirects=True,
+            )
 
-    if "html" not in content_type:
-        return ""
+            if response.status_code == 429:
 
-    return r.text
+                wait = 5 * (attempt + 1)
 
+                print(
+                    f"  rate limited; waiting {wait}s"
+                )
 
-# ============================================================
-# JOB FAMILY DETECTION
-# ============================================================
+                time.sleep(wait)
+                continue
 
-def family(title):
+            response.raise_for_status()
 
-    x = clean(title).lower()
+            content_type = response.headers.get(
+                "content-type",
+                "",
+            ).lower()
 
-    for fam, terms in FAMILIES.items():
+            if (
+                "html" not in content_type
+                and "text" not in content_type
+            ):
+                return ""
 
-        if any(term in x for term in terms):
-            return fam
+            return response.text
 
-    if any(term in x for term in STRETCH):
-        return "Data Engineering (stretch)"
+        except requests.RequestException:
+
+            if attempt == retries - 1:
+                raise
+
+            time.sleep(2 * (attempt + 1))
 
     return ""
 
 
 # ============================================================
-# VACANCY URL DETECTION
+# JOB FAMILY
 # ============================================================
 
-def job_url(u):
+def family(title):
 
-    p = urlparse(u).path.lower()
+    text = clean(title).lower()
 
-    patterns = [
+    for fam, terms in FAMILIES.items():
 
-        # Generic
-        r"/job/",
+        if any(term in text for term in terms):
+            return fam
 
-        # Smals
-        r"/jobs/apply/\d+/",
+    if any(term in text for term in STRETCH):
+        return "Data Engineering (stretch)"
 
-        # Akkodis
-        r"/careers/jobs/[^/]+/\d+",
+    return ""
 
-        # Other common structures
-        r"/jobs/[^/]+",
-        r"/vacancy/[^/]+",
-        r"/vacancies/[^/]+",
-        r"/job-search/[^/]+",
 
-    ]
+def looks_targeted(text):
 
-    return any(
-        re.search(pattern, p)
-        for pattern in patterns
+    return bool(
+        family(clean(text))
     )
 
 
 # ============================================================
-# JSON-LD EXTRACTION
+# COMPANY-SPECIFIC URL DETECTION
 # ============================================================
 
-def jsonlds(soup):
+def is_job_url(url, source):
+
+    path = urlparse(url).path.lower()
+
+    source_type = source["type"]
+
+    if source_type == "cegeka":
+
+        return bool(
+            re.search(
+                r"/(?:en|nl)/be/jobs/all-jobs/"
+                r"[^/]+-\d+$",
+                path,
+            )
+        )
+
+    if source_type == "smals":
+
+        return bool(
+            re.search(
+                r"/(?:nl|fr)/jobs/apply/\d+/[^/]+$",
+                path,
+            )
+        )
+
+    if source_type == "akkodis":
+
+        return bool(
+            re.search(
+                r"/en-be/careers/jobs/[^/]+/[^/]+$",
+                path,
+            )
+        )
+
+    if source_type == "pauwels":
+
+        return bool(
+            re.search(
+                r"/(?:[a-z]{2}-[a-z]{2}/)?job/"
+                r"[^/]+/[^/]+$",
+                path,
+            )
+        )
+
+    if source_type == "capgemini":
+
+        return bool(
+            re.search(
+                r"/job/[^/]+",
+                path,
+            )
+            or re.search(
+                r"/(?:be-en/)?jobs/[^/]+",
+                path,
+            )
+        )
+
+    return False
+
+
+# ============================================================
+# JSON-LD
+# ============================================================
+
+def jsonld_objects(soup):
 
     for script in soup.find_all(
         "script",
         type="application/ld+json",
     ):
 
+        raw = (
+            script.string
+            or script.get_text()
+        )
+
         try:
-
-            raw = (
-                script.string
-                or script.get_text()
-            )
-
             data = json.loads(raw)
 
         except Exception:
@@ -304,34 +386,103 @@ def jsonlds(soup):
 
             graph = obj.get("@graph")
 
-            if not isinstance(graph, list):
-                graph = [obj]
+            if isinstance(graph, list):
 
-            for item in graph:
+                for item in graph:
 
-                if isinstance(item, dict):
-                    yield item
+                    if isinstance(item, dict):
+                        yield item
+
+            else:
+                yield obj
 
 
-# ============================================================
-# LOCATION EXTRACTION
-# ============================================================
+def extract_jsonld_job(html, source, page_url):
 
-def location(o):
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
 
-    locations = o.get("jobLocation") or []
+    for obj in jsonld_objects(soup):
 
-    if not isinstance(locations, list):
-        locations = [locations]
+        job_type = obj.get("@type", [])
 
-    out = []
+        if isinstance(job_type, str):
+            job_type = [job_type]
 
-    for loc in locations:
-
-        if not isinstance(loc, dict):
+        if "JobPosting" not in job_type:
             continue
 
-        address = loc.get(
+        title = clean(
+            obj.get("title")
+        )
+
+        if not family(title):
+            continue
+
+        description = clean(
+            BeautifulSoup(
+                str(
+                    obj.get(
+                        "description",
+                        "",
+                    )
+                ),
+                "html.parser",
+            ).get_text(" ")
+        )
+
+        location = extract_jsonld_location(
+            obj
+        )
+
+        employment = obj.get(
+            "employmentType",
+            "",
+        )
+
+        if isinstance(employment, list):
+            employment = ", ".join(employment)
+
+        url = normalize_url(
+            obj.get("url") or page_url,
+            page_url,
+        )
+
+        return make_job(
+            source,
+            title,
+            description,
+            url,
+            location,
+            clean(employment),
+        )
+
+    return None
+
+
+def extract_jsonld_location(obj):
+
+    raw_locations = (
+        obj.get("jobLocation")
+        or []
+    )
+
+    if not isinstance(
+        raw_locations,
+        list,
+    ):
+        raw_locations = [raw_locations]
+
+    locations = []
+
+    for item in raw_locations:
+
+        if not isinstance(item, dict):
+            continue
+
+        address = item.get(
             "address",
             {},
         )
@@ -339,240 +490,214 @@ def location(o):
         if not isinstance(address, dict):
             continue
 
-        value = ", ".join(
+        pieces = []
 
-            clean(address.get(k))
+        for key in [
+            "postalCode",
+            "addressLocality",
+            "addressRegion",
+            "addressCountry",
+        ]:
 
-            for k in [
-                "postalCode",
-                "addressLocality",
-                "addressRegion",
-                "addressCountry",
-            ]
+            value = clean(
+                address.get(key)
+            )
 
-            if address.get(k)
-        )
+            if value:
+                pieces.append(value)
 
-        if value:
-            out.append(value)
+        if pieces:
+            locations.append(
+                ", ".join(pieces)
+            )
 
     return " / ".join(
-        dict.fromkeys(out)
+        dict.fromkeys(locations)
     )
 
 
 # ============================================================
-# STRUCTURED JOB EXTRACTION
+# GENERIC DETAIL-PAGE EXTRACTION
 # ============================================================
 
-def structured(html, src, url):
+def page_title(soup):
 
-    soup = BeautifulSoup(
-        html,
-        "html.parser",
-    )
+    h1 = soup.find("h1")
 
-    out = []
-
-    for o in jsonlds(soup):
-
-        typ = o.get(
-            "@type",
-            [],
+    if h1:
+        return clean(
+            h1.get_text(
+                " ",
+                strip=True,
+            )
         )
 
-        if not isinstance(typ, list):
-            typ = [typ]
+    og = soup.find(
+        "meta",
+        property="og:title",
+    )
 
-        if "JobPosting" not in typ:
-            continue
+    if og:
+        return clean(
+            og.get("content")
+        )
+
+    title_tag = soup.find("title")
+
+    if title_tag:
 
         title = clean(
-            o.get("title")
-        )
-
-        fam = family(title)
-
-        # This is where we now decide whether
-        # the ACTUAL vacancy title belongs to
-        # our target job families.
-
-        if not fam:
-            continue
-
-        description_html = str(
-            o.get(
-                "description",
-                "",
+            title_tag.get_text(
+                " ",
+                strip=True,
             )
         )
 
-        desc = clean(
+        title = re.split(
+            r"\s+[|\-]\s+",
+            title,
+        )[0]
 
-            BeautifulSoup(
-                description_html,
-                "html.parser",
-            ).get_text(" ")
-        )
+        return clean(title)
 
-        emp = o.get(
-            "employmentType",
-            "",
-        )
-
-        if isinstance(emp, list):
-            emp = ", ".join(emp)
-        else:
-            emp = clean(emp)
-
-        ju = norm(
-            o.get("url") or url,
-            src["url"],
-        )
-
-        out.append(
-            {
-                "title": title,
-                "job_family": fam,
-                "company": src["company"],
-                "location": location(o),
-                "region": "",
-                "salary": "",
-                "employment_type": emp,
-                "url": ju,
-                "description": desc,
-                "source": (
-                    src["company"]
-                    .lower()
-                    .replace(" ", "_")
-                    + "_web"
-                ),
-            }
-        )
-
-    return out
+    return ""
 
 
-# ============================================================
-# LISTING PAGE DISCOVERY
-# ============================================================
+def page_description(soup):
 
-def links(html, src):
+    # Remove obvious navigation/noise.
 
-    soup = BeautifulSoup(
-        html,
-        "html.parser",
+    for tag in soup(
+        [
+            "script",
+            "style",
+            "noscript",
+            "nav",
+            "footer",
+        ]
+    ):
+        tag.decompose()
+
+    main = (
+        soup.find("main")
+        or soup.find("article")
+        or soup.body
     )
 
-    details = []
-    pages = []
+    if not main:
+        return ""
 
-    for a in soup.find_all(
-        "a",
-        href=True,
-    ):
-
-        u = norm(
-            a["href"],
-            src["url"],
+    return clean(
+        main.get_text(
+            " ",
+            strip=True,
         )
+    )
 
-        if not same(
-            u,
-            src["domain"],
-        ):
-            continue
 
-        # IMPORTANT CHANGE:
-        #
-        # We no longer require the visible link text
-        # to say "Data Analyst", "BI Developer", etc.
-        #
-        # A real vacancy link could simply say:
-        # "View job", "Read more", etc.
-        #
-        # We first collect real-looking vacancy URLs,
-        # then inspect the actual vacancy title.
+def guess_location(
+    soup,
+    description,
+):
 
-        if job_url(u):
-            details.append(u)
+    candidates = []
 
-        href = a["href"].lower()
+    selectors = [
+        "[class*='location']",
+        "[class*='Location']",
+        "[data-testid*='location']",
+    ]
 
-        # Generic pagination
+    for selector in selectors:
+
+        try:
+            elements = soup.select(
+                selector
+            )
+
+        except Exception:
+            elements = []
+
+        for element in elements[:5]:
+
+            value = clean(
+                element.get_text(
+                    " ",
+                    strip=True,
+                )
+            )
+
+            if (
+                value
+                and len(value) < 100
+            ):
+                candidates.append(value)
+
+    if candidates:
+        return candidates[0]
+
+    # Conservative fallback for common Belgian locations.
+
+    locations = [
+        "Brussels",
+        "Bruxelles",
+        "Brussel",
+        "Diegem",
+        "Machelen",
+        "Hasselt",
+        "Ghent",
+        "Gent",
+        "Antwerp",
+        "Antwerpen",
+        "Leuven",
+        "Mechelen",
+        "West Flanders",
+        "West-Vlaanderen",
+        "Walloon Brabant",
+        "Braine-l'Alleud",
+        "Schaerbeek",
+        "Schaarbeek",
+    ]
+
+    for location in locations:
 
         if re.search(
-            r"[?&]page=\d+",
-            href,
+            r"\b"
+            + re.escape(location)
+            + r"\b",
+            description,
+            flags=re.I,
         ):
-            pages.append(u)
+            return location
 
-    return (
-        list(dict.fromkeys(details)),
-        list(dict.fromkeys(pages)),
-    )
+    return ""
 
 
-# ============================================================
-# FALLBACK EXTRACTION
-# ============================================================
-
-def fallback(html, u, src):
-
-    if not job_url(u):
-        return None
-
-    soup = BeautifulSoup(
-        html,
-        "html.parser",
-    )
-
-    h = soup.find("h1")
-
-    title = (
-        clean(
-            h.get_text(
-                " ",
-                strip=True,
-            )
-        )
-        if h
-        else ""
-    )
-
-    fam = family(title)
-
-    if not fam:
-        return None
-
-    main = soup.find("main")
-
-    desc = (
-        clean(
-            main.get_text(
-                " ",
-                strip=True,
-            )
-        )
-        if main
-        else ""
-    )
-
-    if len(desc) < 200:
-        return None
+def make_job(
+    source,
+    title,
+    description,
+    url,
+    location="",
+    employment_type="",
+):
 
     return {
-        "title": title,
-        "job_family": fam,
-        "company": src["company"],
-        "location": "",
+        "title": clean(title),
+        "job_family": family(title),
+        "company": source["company"],
+        "location": clean(location),
         "region": "",
         "salary": "",
-        "employment_type": "",
-        "url": u,
-        "description": desc,
+        "employment_type": clean(
+            employment_type
+        ),
+        "url": url,
+        "description": clean(
+            description
+        ),
         "source": (
-            src["company"]
+            source["company"]
             .lower()
             .replace(" ", "_")
             + "_web"
@@ -580,8 +705,527 @@ def fallback(html, u, src):
     }
 
 
+def extract_detail_job(
+    html,
+    source,
+    url,
+):
+
+    # First try JobPosting JSON-LD.
+
+    job = extract_jsonld_job(
+        html,
+        source,
+        url,
+    )
+
+    if job:
+        return job
+
+    # Then parse visible page content.
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    title = page_title(soup)
+
+    fam = family(title)
+
+    if not fam:
+        return None
+
+    description = page_description(
+        soup
+    )
+
+    if len(description) < 150:
+        return None
+
+    location = guess_location(
+        soup,
+        description,
+    )
+
+    return make_job(
+        source,
+        title,
+        description,
+        url,
+        location,
+    )
+
+
 # ============================================================
-# EXPERIENCE EXTRACTION
+# LINK DISCOVERY
+# ============================================================
+
+def discover_from_listing(
+    html,
+    source,
+):
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    candidates = []
+
+    for anchor in soup.find_all(
+        "a",
+        href=True,
+    ):
+
+        href = anchor.get("href")
+
+        url = normalize_url(
+            href,
+            source["url"],
+        )
+
+        if not host_matches(
+            url,
+            source["domain"],
+        ):
+            continue
+
+        if not is_job_url(
+            url,
+            source,
+        ):
+            continue
+
+        text = clean(
+            anchor.get_text(
+                " ",
+                strip=True,
+            )
+        )
+
+        slug = (
+            urlparse(url)
+            .path
+            .split("/")[-1]
+            .replace("-", " ")
+            .replace("_", " ")
+        )
+
+        combined = clean(
+            text + " " + slug
+        )
+
+        # This is the important anti-rate-limit change.
+        #
+        # We only open details when either the visible title
+        # or URL slug looks relevant to our target families.
+
+        if looks_targeted(combined):
+            candidates.append(
+                (url, text)
+            )
+
+    unique = {}
+
+    for url, text in candidates:
+        unique[url] = text
+
+    return [
+        (url, text)
+        for url, text
+        in unique.items()
+    ]
+
+
+# ============================================================
+# PAGINATION
+# ============================================================
+
+def pagination_links(
+    html,
+    source,
+):
+
+    soup = BeautifulSoup(
+        html,
+        "html.parser",
+    )
+
+    pages = []
+
+    for anchor in soup.find_all(
+        "a",
+        href=True,
+    ):
+
+        href = anchor["href"]
+
+        url = normalize_url(
+            href,
+            source["url"],
+        )
+
+        if not host_matches(
+            url,
+            source["domain"],
+        ):
+            continue
+
+        if re.search(
+            r"[?&]page=\d+",
+            url,
+            re.I,
+        ):
+            pages.append(url)
+
+    return list(
+        dict.fromkeys(pages)
+    )
+
+
+# ============================================================
+# CEGEKA
+# ============================================================
+
+def discover_cegeka(source):
+
+    print(
+        "  strategy: Cegeka HTML listing"
+    )
+
+    html = fetch(
+        source["url"]
+    )
+
+    candidates = discover_from_listing(
+        html,
+        source,
+    )
+
+    print(
+        "  relevant vacancy links:",
+        len(candidates),
+    )
+
+    return candidates
+
+
+# ============================================================
+# SMALS
+# ============================================================
+
+def discover_smals(source):
+
+    print(
+        "  strategy: Smals title listing"
+    )
+
+    html = fetch(
+        source["url"]
+    )
+
+    candidates = discover_from_listing(
+        html,
+        source,
+    )
+
+    print(
+        "  relevant vacancy links:",
+        len(candidates),
+    )
+
+    return candidates
+
+
+# ============================================================
+# PAUWELS
+# ============================================================
+
+def discover_pauwels(source):
+
+    print(
+        "  strategy: Pauwels filtered pagination"
+    )
+
+    queue = [
+        source["url"]
+    ]
+
+    visited = set()
+
+    candidates = []
+
+    while (
+        queue
+        and len(visited) < 25
+    ):
+
+        url = queue.pop(0)
+
+        if url in visited:
+            continue
+
+        visited.add(url)
+
+        try:
+            html = fetch(url)
+
+        except Exception as exc:
+
+            print(
+                "  listing skipped:",
+                exc,
+            )
+
+            continue
+
+        candidates.extend(
+            discover_from_listing(
+                html,
+                source,
+            )
+        )
+
+        for page in pagination_links(
+            html,
+            source,
+        ):
+
+            if (
+                page not in visited
+                and page not in queue
+            ):
+                queue.append(page)
+
+        # Pauwels was rate-limiting the previous scraper.
+        time.sleep(1.0)
+
+    unique = {}
+
+    for url, text in candidates:
+        unique[url] = text
+
+    result = list(
+        unique.items()
+    )
+
+    print(
+        "  listing pages:",
+        len(visited),
+    )
+
+    print(
+        "  relevant vacancy links:",
+        len(result),
+    )
+
+    return result
+
+
+# ============================================================
+# CAPGEMINI
+# ============================================================
+
+def discover_capgemini(source):
+
+    print(
+        "  strategy: Capgemini Belgium search"
+    )
+
+    candidates = []
+
+    # The search page is paginated. Request several pages
+    # instead of assuming size=100 will always be honored.
+
+    for page in range(1, 13):
+
+        url = (
+            "https://www.capgemini.com/careers/"
+            "join-capgemini/job-search/"
+            "?country_code=en-be"
+            "&country_name=Belgium"
+            f"&page={page}"
+            "&size=15"
+        )
+
+        try:
+            html = fetch(url)
+
+        except Exception as exc:
+
+            print(
+                f"  page {page} skipped:",
+                exc,
+            )
+
+            continue
+
+        found = discover_from_listing(
+            html,
+            source,
+        )
+
+        candidates.extend(found)
+
+        # If no useful links are found, still try a few pages,
+        # because Capgemini can render search content differently.
+
+        time.sleep(0.7)
+
+    unique = {}
+
+    for url, text in candidates:
+        unique[url] = text
+
+    result = list(
+        unique.items()
+    )
+
+    print(
+        "  relevant vacancy links:",
+        len(result),
+    )
+
+    return result
+
+
+# ============================================================
+# AKKODIS
+# ============================================================
+
+def discover_akkodis(source):
+
+    print(
+        "  strategy: Akkodis Belgium careers discovery"
+    )
+
+    candidates = []
+
+    # Try several current public entry points.
+    # Some Akkodis routes redirect depending on locale/session.
+
+    entry_points = [
+        "https://www.akkodis.com/en-be/careers",
+        "https://www.akkodis.com/en-be/careers/jobs",
+        "https://www.akkodis.com/en-be",
+    ]
+
+    for entry in entry_points:
+
+        try:
+            html = fetch(entry)
+
+        except Exception as exc:
+
+            print(
+                "  entry skipped:",
+                entry,
+                "->",
+                exc,
+            )
+
+            continue
+
+        soup = BeautifulSoup(
+            html,
+            "html.parser",
+        )
+
+        for anchor in soup.find_all(
+            "a",
+            href=True,
+        ):
+
+            url = normalize_url(
+                anchor["href"],
+                entry,
+            )
+
+            if not host_matches(
+                url,
+                source["domain"],
+            ):
+                continue
+
+            if not is_job_url(
+                url,
+                source,
+            ):
+                continue
+
+            title = clean(
+                anchor.get_text(
+                    " ",
+                    strip=True,
+                )
+            )
+
+            slug = (
+                urlparse(url)
+                .path
+                .split("/")[-2]
+                .replace("-", " ")
+            )
+
+            combined = clean(
+                title + " " + slug
+            )
+
+            if looks_targeted(
+                combined
+            ):
+                candidates.append(
+                    (url, title)
+                )
+
+        time.sleep(0.7)
+
+    unique = {}
+
+    for url, text in candidates:
+        unique[url] = text
+
+    result = list(
+        unique.items()
+    )
+
+    print(
+        "  relevant vacancy links:",
+        len(result),
+    )
+
+    return result
+
+
+# ============================================================
+# DISCOVERY ROUTER
+# ============================================================
+
+def discover(source):
+
+    source_type = source["type"]
+
+    if source_type == "cegeka":
+        return discover_cegeka(source)
+
+    if source_type == "smals":
+        return discover_smals(source)
+
+    if source_type == "pauwels":
+        return discover_pauwels(source)
+
+    if source_type == "capgemini":
+        return discover_capgemini(source)
+
+    if source_type == "akkodis":
+        return discover_akkodis(source)
+
+    return []
+
+
+# ============================================================
+# EXPERIENCE
 # ============================================================
 
 def extract_experience(text):
@@ -589,43 +1233,37 @@ def extract_experience(text):
     text = text.lower()
 
     patterns = [
-
-        # English
         r"(\d+)\s*\+\s*years",
         r"minimum\s+(?:of\s+)?(\d+)\s+years",
         r"at least\s+(\d+)\s+years",
         r"(\d+)\s+years\s+of\s+experience",
         r"(\d+)\s+years['’]?\s+experience",
 
-        # Dutch
         r"(\d+)\s+jaar\s+ervaring",
+        r"minimaal\s+(\d+)\s+jaar",
         r"minimum\s+(\d+)\s+jaar",
         r"minstens\s+(\d+)\s+jaar",
 
-        # French
         r"(\d+)\s+ans\s+d['’]expérience",
         r"minimum\s+(\d+)\s+ans",
         r"au moins\s+(\d+)\s+ans",
-
     ]
 
     years = []
 
     for pattern in patterns:
 
-        matches = re.findall(
+        for match in re.findall(
             pattern,
             text,
-        )
-
-        for match in matches:
+        ):
 
             try:
                 years.append(
                     int(match)
                 )
 
-            except Exception:
+            except ValueError:
                 pass
 
     if not years:
@@ -635,75 +1273,81 @@ def extract_experience(text):
 
 
 # ============================================================
-# DEGREE REQUIREMENT EXTRACTION
+# DEGREE REQUIREMENTS
 # ============================================================
 
-def extract_degree_requirement(text):
+def degree_requirement(text):
 
-    t = text.lower()
+    text = text.lower()
 
     equivalent = bool(
         re.search(
             r"or equivalent"
             r"|equivalent experience"
             r"|equivalent qualification"
-            r"|equivalent professional experience"
-            r"|or equivalent through"
-            r"|equivalent through",
-            t,
+            r"|gelijkwaardige ervaring"
+            r"|ervaring gelijkwaardig"
+            r"|expérience équivalente",
+            text,
         )
     )
 
-    has_master = bool(
+    master = bool(
         re.search(
             r"\bmaster'?s?\b"
             r"|\bmaster degree\b"
             r"|\bmaster diploma\b"
-            r"|\bmaster’s\b",
-            t,
+            r"|\bmasterdiploma\b"
+            r"|\bmaster en\b"
+            r"|\bmaster in\b",
+            text,
         )
     )
 
-    has_bachelor = bool(
+    bachelor = bool(
         re.search(
             r"\bbachelor'?s?\b"
             r"|\bbachelor degree\b"
-            r"|\bbachelor’s\b",
-            t,
+            r"|\bbachelor diploma\b"
+            r"|\bbachelordiploma\b",
+            text,
         )
     )
 
-    technical_patterns = [
+    technical_terms = (
+        r"computer science"
+        r"|engineering"
+        r"|informatics"
+        r"|information technology"
+        r"|data science"
+        r"|mathematics"
+        r"|statistics"
+        r"|ict"
+        r"|informatica"
+        r"|ingenieur"
+    )
 
-        (
-            r"(?:bachelor|master|degree|diploma)"
-            r".{0,100}"
-            r"(?:ict|computer science|engineering|"
-            r"informatics|information technology|"
-            r"data science|mathematics|statistics)"
-        ),
-
-        (
-            r"(?:ict|computer science|engineering|"
-            r"informatics|information technology|"
-            r"data science|mathematics|statistics)"
-            r".{0,100}"
-            r"(?:degree|bachelor|master|diploma)"
-        ),
-
-    ]
-
-    technical_degree = any(
-        re.search(pattern, t)
-        for pattern in technical_patterns
+    technical_degree = bool(
+        re.search(
+            rf"(?:degree|bachelor|master|diploma)"
+            rf".{{0,100}}(?:{technical_terms})",
+            text,
+        )
+        or
+        re.search(
+            rf"(?:{technical_terms})"
+            rf".{{0,100}}"
+            rf"(?:degree|bachelor|master|diploma)",
+            text,
+        )
     )
 
     if technical_degree:
 
         if equivalent:
             return (
-                "technical degree "
-                "or equivalent experience"
+                "technical degree or "
+                "equivalent experience"
             )
 
         return (
@@ -711,7 +1355,7 @@ def extract_degree_requirement(text):
             "technical degree"
         )
 
-    if has_master:
+    if master:
 
         if equivalent:
             return (
@@ -721,7 +1365,7 @@ def extract_degree_requirement(text):
 
         return "mandatory Master's"
 
-    if has_bachelor:
+    if bachelor:
 
         if equivalent:
             return (
@@ -735,30 +1379,29 @@ def extract_degree_requirement(text):
 
 
 # ============================================================
-# LANGUAGE EXTRACTION
+# LANGUAGES
 # ============================================================
 
 def extract_languages(text):
 
-    t = text.lower()
+    text = text.lower()
 
-    languages = []
+    result = []
 
-    language_patterns = {
-
+    language_terms = {
         "Dutch": [
             "dutch",
             "nederlands",
             "néerlandais",
+            "landstalen",
         ],
-
         "French": [
             "french",
             "français",
             "francais",
             "frans",
+            "landstalen",
         ],
-
         "English": [
             "english",
             "engels",
@@ -766,27 +1409,29 @@ def extract_languages(text):
         ],
     }
 
-    for language, terms in language_patterns.items():
+    for language, terms in (
+        language_terms.items()
+    ):
 
         if any(
-            term in t
+            term in text
             for term in terms
         ):
-            languages.append(language)
+            result.append(language)
 
-    return ", ".join(languages)
+    return ", ".join(result)
 
 
 # ============================================================
-# SKILL EXTRACTION
+# SKILLS
 # ============================================================
 
-def extract_skill_info(j):
+def skill_information(job):
 
     text = (
-        j["title"]
+        job["title"]
         + " "
-        + j["description"]
+        + job["description"]
     ).lower()
 
     matched = []
@@ -796,75 +1441,55 @@ def extract_skill_info(j):
         if skill in text:
             matched.append(skill)
 
-    missing = []
+    gaps = []
 
     for skill in GAP_SKILLS:
 
         if skill in text:
-            missing.append(skill)
+            gaps.append(skill)
 
-    return (
-        matched,
-        missing,
-    )
+    return matched, gaps
 
 
 # ============================================================
 # HARD FILTERS
 # ============================================================
 
-def hard(j):
+def hard_filter(job):
 
-    title = j["title"].lower()
+    title = job["title"].lower()
 
     text = (
-        j["title"]
+        job["title"]
         + " "
-        + j["description"]
+        + job["description"]
     ).lower()
 
-    # --------------------------------------------------------
-    # Internship / traineeship
-    # --------------------------------------------------------
-
     if any(
-        x in text
-        for x in [
+        term in text
+        for term in [
             "internship",
             "traineeship",
-            "intern ",
+            "stage ",
         ]
     ):
-
-        return (
-            False,
-            "internship",
-        )
-
-    # --------------------------------------------------------
-    # Finance-specific jobs
-    # --------------------------------------------------------
+        return False, "internship"
 
     if any(
-        x in title
-        for x in [
+        term in title
+        for term in [
             "financial analyst",
             "finance analyst",
             "financial controller",
             "treasury analyst",
         ]
     ):
-
         return (
             False,
             "finance-focused role",
         )
 
-    # --------------------------------------------------------
-    # Degree requirements
-    # --------------------------------------------------------
-
-    degree = extract_degree_requirement(
+    degree = degree_requirement(
         text
     )
 
@@ -875,9 +1500,9 @@ def hard(j):
             "mandatory Master's degree",
         )
 
-    if degree == (
-        "mandatory specific "
-        "technical degree"
+    if (
+        degree
+        == "mandatory specific technical degree"
     ):
 
         return (
@@ -885,10 +1510,6 @@ def hard(j):
             "mandatory specific "
             "technical/ICT degree",
         )
-
-    # --------------------------------------------------------
-    # Experience
-    # --------------------------------------------------------
 
     years = extract_experience(
         text
@@ -905,85 +1526,68 @@ def hard(j):
             f"relevant experience",
         )
 
-    return (
-        True,
-        "passed",
-    )
+    return True, "passed"
 
 
 # ============================================================
-# MATCH SCORING
+# MATCH SCORE
 # ============================================================
 
-def score(j):
+def score(job):
 
     text = (
-        j["title"]
+        job["title"]
         + " "
-        + j["description"]
+        + job["description"]
     ).lower()
 
-    score_value = 35
+    value = 35
 
     reasons = [
-        j["job_family"]
+        job["job_family"]
     ]
 
-    # --------------------------------------------------------
-    # Job-family score
-    # --------------------------------------------------------
+    fam = job["job_family"]
 
-    if (
-        j["job_family"]
-        == "HR Data / People Analytics"
-    ):
+    if fam == "HR Data / People Analytics":
 
-        score_value += 22
+        value += 22
 
         reasons.append(
             "high-priority HR/data family"
         )
 
-    elif j["job_family"] in [
+    elif fam in [
         "Data Analyst",
         "BI / Power BI",
     ]:
 
-        score_value += 18
+        value += 18
 
-    elif j["job_family"] in [
+    elif fam in [
         "Data Governance / Quality",
         "Reporting",
     ]:
 
-        score_value += 15
+        value += 15
 
-    elif (
-        j["job_family"]
-        == "Data Engineering (stretch)"
-    ):
+    elif fam == "Data Engineering (stretch)":
 
-        score_value -= 8
+        value -= 8
 
         reasons.append(
             "stretch role"
         )
 
     else:
+        value += 10
 
-        score_value += 10
-
-    # --------------------------------------------------------
-    # Skills
-    # --------------------------------------------------------
-
-    matched, missing = (
-        extract_skill_info(j)
+    matched, gaps = skill_information(
+        job
     )
 
     for skill in matched:
-
-        score_value += SKILLS[skill]
+        value += SKILLS[skill]
 
     if matched:
 
@@ -994,27 +1598,19 @@ def score(j):
             )
         )
 
-    # --------------------------------------------------------
-    # Potential gaps
-    # --------------------------------------------------------
+    if gaps:
 
-    if missing:
-
-        score_value -= min(
+        value -= min(
             15,
-            len(missing) * 3,
+            len(gaps) * 3,
         )
 
         reasons.append(
             "potential gaps: "
             + ", ".join(
-                missing[:5]
+                gaps[:5]
             )
         )
-
-    # --------------------------------------------------------
-    # Experience
-    # --------------------------------------------------------
 
     years = extract_experience(
         text
@@ -1027,46 +1623,30 @@ def score(j):
         )
 
         if years >= 6:
-
-            score_value -= 22
+            value -= 22
 
         elif years == 5:
-
-            score_value -= 15
+            value -= 15
 
         elif years == 4:
-
-            score_value -= 8
+            value -= 8
 
         elif years <= 3:
+            value += 3
 
-            score_value += 3
+    title = job["title"].lower()
 
-    # --------------------------------------------------------
-    # Seniority
-    # --------------------------------------------------------
+    if "senior" in title:
 
-    if "senior" in j["title"].lower():
+        value -= 8
+        reasons.append("senior title")
 
-        score_value -= 8
+    if "expert" in title:
 
-        reasons.append(
-            "senior title"
-        )
+        value -= 10
+        reasons.append("expert title")
 
-    if "expert" in j["title"].lower():
-
-        score_value -= 10
-
-        reasons.append(
-            "expert title"
-        )
-
-    # --------------------------------------------------------
-    # Degree
-    # --------------------------------------------------------
-
-    degree = extract_degree_requirement(
+    degree = degree_requirement(
         text
     )
 
@@ -1075,11 +1655,8 @@ def score(j):
         in degree.lower()
     ):
 
-        score_value -= 5
-
-        reasons.append(
-            degree
-        )
+        value -= 5
+        reasons.append(degree)
 
     elif degree == "Bachelor's degree":
 
@@ -1087,44 +1664,43 @@ def score(j):
             "Bachelor's degree requested"
         )
 
-    # --------------------------------------------------------
-    # Location
-    # --------------------------------------------------------
-
-    loc = j.get(
+    location = job.get(
         "location",
         "",
     ).lower()
 
     if any(
-        x in loc
-        for x in [
+        place in location
+        for place in [
             "brussels",
             "bruxelles",
             "brussel",
             "anderlecht",
+            "schaerbeek",
+            "schaarbeek",
+            "diegem",
+            "machelen",
         ]
     ):
 
-        score_value += 5
-
+        value += 5
         reasons.append(
             "Brussels area"
         )
 
     elif any(
-        x in loc
-        for x in [
-            "antwerpen",
+        place in location
+        for place in [
             "antwerp",
+            "antwerpen",
             "brugge",
             "bruges",
-            "beerse",
             "west flanders",
+            "west-vlaanderen",
         ]
     ):
 
-        score_value -= 8
+        value -= 8
 
         reasons.append(
             "outside preferred Brussels area"
@@ -1133,154 +1709,71 @@ def score(j):
     return (
         max(
             0,
-            min(
-                100,
-                score_value,
-            ),
+            min(100, value),
         ),
         "; ".join(reasons),
     )
 
 
 # ============================================================
-# SCRAPER
+# SCRAPE ONE COMPANY
 # ============================================================
 
-def scrape(src):
+def scrape_source(source):
 
-    queue = [
-        src["url"]
-    ]
-
-    seen = set()
-
-    detail = []
-
-    while (
-        queue
-        and len(seen) < 12
-    ):
-
-        u = queue.pop(0)
-
-        if u in seen:
-            continue
-
-        seen.add(u)
-
-        try:
-
-            html = fetch(u)
-
-        except Exception as e:
-
-            print(
-                "  listing skipped:",
-                e,
-            )
-
-            continue
-
-        details, pages = links(
-            html,
-            src,
-        )
-
-        detail += details
-
-        for page in pages:
-
-            if (
-                page not in seen
-                and page not in queue
-            ):
-
-                queue.append(page)
-
-        # Some sites expose JobPosting
-        # directly on listing pages.
-
-        for job in structured(
-            html,
-            src,
-            u,
-        ):
-
-            if job_url(
-                job["url"]
-            ):
-
-                detail.append(
-                    job["url"]
-                )
-
-        time.sleep(0.1)
-
-    detail = list(
-        dict.fromkeys(detail)
+    candidates = discover(
+        source
     )
 
-    # Prevent a broken site from creating
-    # an uncontrolled crawl.
-
-    detail = detail[:150]
+    jobs = []
 
     print(
-        f"  listing pages: {len(seen)} "
-        f"| vacancy links discovered: "
-        f"{len(detail)}"
+        "  opening targeted detail pages:",
+        len(candidates),
     )
 
-    out = []
-
-    for u in detail:
+    for index, (
+        url,
+        listing_title,
+    ) in enumerate(
+        candidates,
+        start=1,
+    ):
 
         try:
 
-            html = fetch(u)
+            html = fetch(url)
 
-            jobs = structured(
+            job = extract_detail_job(
                 html,
-                src,
-                u,
+                source,
+                url,
             )
 
-            if jobs:
+            if job:
+                jobs.append(job)
 
-                out += jobs
-
-            else:
-
-                job = fallback(
-                    html,
-                    u,
-                    src,
-                )
-
-                if job:
-                    out.append(job)
-
-        except Exception as e:
+        except Exception as exc:
 
             print(
                 "  detail skipped:",
-                e,
+                exc,
             )
 
-        time.sleep(0.1)
+        # Pauwels needs slower requests.
+        if source["type"] == "pauwels":
+            time.sleep(1.25)
+        else:
+            time.sleep(0.35)
 
-    # Final validation:
-    #
-    # Only keep actual target-family vacancies.
+    unique = {}
 
-    unique = {
-        job["url"]: job
+    for job in jobs:
 
-        for job in out
+        if not job["job_family"]:
+            continue
 
-        if family(job["title"])
-        and job_url(job["url"])
-    }
+        unique[job["url"]] = job
 
     return list(
         unique.values()
@@ -1288,7 +1781,7 @@ def scrape(src):
 
 
 # ============================================================
-# MAIN PIPELINE
+# MAIN
 # ============================================================
 
 def run():
@@ -1303,91 +1796,85 @@ def run():
 
     total_discovered = 0
 
-    print(
-        "\n======================================"
-    )
+    print()
+    print("=" * 50)
+    print("JOB SCRAPER V3 - COMPANY ADAPTER VERSION")
+    print("=" * 50)
 
-    print(
-        "JOB SCRAPER V3"
-    )
+    for source in SOURCES:
 
-    print(
-        "======================================"
-    )
-
-    for src in SOURCES:
-
-        print(
-            "\n--------------------------------------"
-        )
-
+        print()
+        print("-" * 50)
         print(
             "Scraping",
-            src["company"],
+            source["company"],
         )
-
-        print(
-            "--------------------------------------"
-        )
+        print("-" * 50)
 
         try:
 
-            jobs = scrape(src)
+            jobs = scrape_source(
+                source
+            )
 
-        except Exception as e:
+        except Exception as exc:
 
             print(
                 "  SOURCE ERROR:",
-                e,
+                exc,
             )
 
             continue
 
-        total_discovered += len(jobs)
+        total_discovered += len(
+            jobs
+        )
 
         source_accepted = 0
         source_rejected = 0
 
-        for j in jobs:
+        for job in jobs:
 
-            text = (
-                j["title"]
+            full_text = (
+                job["title"]
                 + " "
-                + j["description"]
+                + job["description"]
             )
 
-            required_experience = (
+            experience = (
                 extract_experience(
-                    text
+                    full_text
                 )
             )
 
-            degree_requirement = (
-                extract_degree_requirement(
-                    text
+            degree = (
+                degree_requirement(
+                    full_text
                 )
             )
 
-            required_languages = (
+            languages = (
                 extract_languages(
-                    text
+                    full_text
                 )
             )
 
             (
                 matched_skills,
                 missing_skills,
-            ) = extract_skill_info(j)
+            ) = skill_information(job)
 
-            ok, status = hard(j)
+            ok, filter_reason = (
+                hard_filter(job)
+            )
 
             if not ok:
 
                 print(
                     "  REJECT:",
-                    j["title"],
+                    job["title"],
                     "->",
-                    status,
+                    filter_reason,
                 )
 
                 rejected += 1
@@ -1395,53 +1882,63 @@ def run():
 
                 continue
 
-            match_score, reason = score(j)
-
-            j.update(
-
-                date_found=now,
-
-                active=True,
-
-                required_experience=(
-                    required_experience
-                    if required_experience
-                    is not None
-                    else ""
-                ),
-
-                degree_requirement=(
-                    degree_requirement
-                ),
-
-                required_languages=(
-                    required_languages
-                ),
-
-                matched_skills=", ".join(
-                    matched_skills
-                ),
-
-                missing_skills=", ".join(
-                    missing_skills
-                ),
-
-                match_score=match_score,
-
-                match_reason=reason,
-
-                hard_filter_status=status,
-
-                hard_filter_reason="",
+            match_score, match_reason = (
+                score(job)
             )
 
-            accepted.append(j)
+            job.update(
+                {
+                    "date_found": now,
+                    "active": True,
+
+                    "required_experience": (
+                        experience
+                        if experience
+                        is not None
+                        else ""
+                    ),
+
+                    "degree_requirement": degree,
+
+                    "required_languages": (
+                        languages
+                    ),
+
+                    "matched_skills": (
+                        ", ".join(
+                            matched_skills
+                        )
+                    ),
+
+                    "missing_skills": (
+                        ", ".join(
+                            missing_skills
+                        )
+                    ),
+
+                    "match_score": (
+                        match_score
+                    ),
+
+                    "match_reason": (
+                        match_reason
+                    ),
+
+                    "hard_filter_status": (
+                        "passed"
+                    ),
+
+                    "hard_filter_reason": "",
+                }
+            )
+
+            accepted.append(job)
 
             source_accepted += 1
 
             print(
                 "  ACCEPT:",
-                j["title"],
+                job["title"],
                 f"-> score {match_score}",
             )
 
@@ -1451,18 +1948,13 @@ def run():
         )
 
         print(
-            f"  accepted: "
-            f"{source_accepted}"
-            f" | rejected: "
-            f"{source_rejected}"
+            "  accepted:",
+            source_accepted,
+            "| rejected:",
+            source_rejected,
         )
 
-    # ========================================================
-    # OUTPUT
-    # ========================================================
-
-    cols = [
-
+    columns = [
         "title",
         "job_family",
         "company",
@@ -1475,40 +1967,29 @@ def run():
         "source",
         "date_found",
         "active",
-
         "required_experience",
         "degree_requirement",
         "required_languages",
-
         "matched_skills",
         "missing_skills",
-
         "match_score",
         "match_reason",
-
         "hard_filter_status",
         "hard_filter_reason",
     ]
 
     df = pd.DataFrame(
         accepted,
-        columns=cols,
+        columns=columns,
     )
 
-    print(
-        "\n======================================"
-    )
+    print()
+    print("=" * 50)
+    print("SCRAPER SUMMARY")
+    print("=" * 50)
 
     print(
-        "SCRAPER SUMMARY"
-    )
-
-    print(
-        "======================================"
-    )
-
-    print(
-        "Target vacancies discovered:",
+        "Target vacancies extracted:",
         total_discovered,
     )
 
@@ -1525,7 +2006,7 @@ def run():
     if df.empty:
 
         print(
-            "No verified matches."
+            "No verified matching jobs found."
         )
 
         print(
@@ -1535,13 +2016,13 @@ def run():
         return
 
     df.drop_duplicates(
-        "url",
+        subset=["url"],
         keep="last",
         inplace=True,
     )
 
     df.sort_values(
-        "match_score",
+        by="match_score",
         ascending=False,
         inplace=True,
     )
@@ -1551,12 +2032,24 @@ def run():
         index=False,
     )
 
+    print()
     print(
         "Saved",
         len(df),
         "verified targeted jobs to",
         OUTPUT,
     )
+
+    print()
+    print("TOP RESULTS")
+
+    for _, row in df.head(10).iterrows():
+
+        print(
+            f"  {row['match_score']:>3} | "
+            f"{row['company']} | "
+            f"{row['title']}"
+        )
 
 
 if __name__ == "__main__":

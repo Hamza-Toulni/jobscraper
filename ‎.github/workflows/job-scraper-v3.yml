@@ -1,62 +1,15 @@
 name: Job Scraper V3
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-  schedule:
-    - cron: "0 8,20 * * *"
-
-permissions:
-  contents: write
 
 jobs:
-  run-scraper:
+  test-v3:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r V3/requirements.txt
-
-      - name: Run V3 scraper
-        working-directory: V3
-        run: python run_job_scraper.py
-
-      - name: Inspect result
-        run: |
-          if [ -f V3/job_market_matches.csv ]; then
-            echo "V3 created a CSV:"
-            wc -l V3/job_market_matches.csv
-            head -n 5 V3/job_market_matches.csv
-          else
-            echo "No CSV was created because no verified matches were found."
-          fi
-
-      - name: Commit results
-        run: |
-          if [ ! -f V3/job_market_matches.csv ]; then
-            echo "Nothing to commit."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add V3/job_market_matches.csv
-
-          if git diff --cached --quiet; then
-            echo "No changes."
-            exit 0
-          fi
-
-          git commit -m "Update V3 job matches"
-          git pull --rebase origin main
-          git push origin HEAD:main
+      - name: V3 registration test
+        run: echo "Job Scraper V3 is registered correctly"

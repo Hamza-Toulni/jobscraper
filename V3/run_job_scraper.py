@@ -297,17 +297,17 @@ def is_job_url(url, source):
 
     source_type = source["type"]
 
-if source_type == "cegeka":
-
-    return bool(
-        re.search(
-            r"/jobs/all-jobs/[^/]+-\d+$",
-            path,
+    # CEGEKA
+    if source_type == "cegeka":
+        return bool(
+            re.search(
+                r"/jobs/all-jobs/[^/]+-\d+$",
+                path,
+            )
         )
-    )
 
+    # SMALS
     if source_type == "smals":
-
         return bool(
             re.search(
                 r"/(?:nl|fr)/jobs/apply/\d+/[^/]+$",
@@ -315,8 +315,8 @@ if source_type == "cegeka":
             )
         )
 
+    # AKKODIS
     if source_type == "akkodis":
-
         return bool(
             re.search(
                 r"/en-be/careers/jobs/[^/]+/[^/]+$",
@@ -324,8 +324,8 @@ if source_type == "cegeka":
             )
         )
 
+    # PAUWELS
     if source_type == "pauwels":
-
         return bool(
             re.search(
                 r"/(?:[a-z]{2}-[a-z]{2}/)?job/"
@@ -334,8 +334,8 @@ if source_type == "cegeka":
             )
         )
 
+    # CAPGEMINI
     if source_type == "capgemini":
-
         return bool(
             re.search(
                 r"/job/[^/]+",

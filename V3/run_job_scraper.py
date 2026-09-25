@@ -297,15 +297,14 @@ def is_job_url(url, source):
 
     source_type = source["type"]
 
-    if source_type == "cegeka":
+if source_type == "cegeka":
 
-        return bool(
-            re.search(
-                r"/(?:en|nl)/be/jobs/all-jobs/"
-                r"[^/]+-\d+$",
-                path,
-            )
+    return bool(
+        re.search(
+            r"/jobs/all-jobs/[^/]+-\d+$",
+            path,
         )
+    )
 
     if source_type == "smals":
 
@@ -898,10 +897,81 @@ def discover_cegeka(source):
         source["url"]
     )
 
-    candidates = discover_from_listing(
+    soup = BeautifulSoup(
         html,
-        source,
+        "html.parser",
     )
+
+    all_job_links = []
+
+    for anchor in soup.find_all(
+        "a",
+        href=True,
+    ):
+
+        url = normalize_url(
+            anchor["href"],
+            source["url"],
+        )
+
+        path = urlparse(url).path.lower()
+
+        if (
+            "/jobs/all-jobs/" in path
+            and re.search(r"-\d+$", path)
+        ):
+
+            title = clean(
+                anchor.get_text(
+                    " ",
+                    strip=True,
+                )
+            )
+
+            all_job_links.append(
+                (url, title)
+            )
+
+    # Remove duplicate links
+    unique = {}
+
+    for url, title in all_job_links:
+        unique[url] = title
+
+    all_job_links = list(
+        unique.items()
+    )
+
+    print(
+        "  all Cegeka vacancy links:",
+        len(all_job_links),
+    )
+
+    candidates = []
+
+    for url, title in all_job_links:
+
+        slug = (
+            urlparse(url)
+            .path
+            .split("/")[-1]
+            .replace("-", " ")
+        )
+
+        combined = clean(
+            title + " " + slug
+        )
+
+        if looks_targeted(combined):
+
+            candidates.append(
+                (url, title)
+            )
+
+            print(
+                "  TARGET LINK:",
+                title or slug,
+            )
 
     print(
         "  relevant vacancy links:",

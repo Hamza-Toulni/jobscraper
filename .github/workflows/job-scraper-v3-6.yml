@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Job Scraper V3.6
         working-directory: V3.6
-        run: python run_job_scraper_v3_6.py
+        run: python run_job_scraper_v3_6_1.py
 
       - name: Inspect results
         run: |

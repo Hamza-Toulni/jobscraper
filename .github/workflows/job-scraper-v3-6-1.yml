@@ -1,0 +1,71 @@
+name: Job Scraper V3.6
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r V3.6/requirements.txt
+
+      - name: Run Job Scraper V3.6
+        working-directory: V3.6
+        run: python run_job_scraper_v3_6.py
+
+      - name: Inspect results
+        run: |
+          echo "=== V3.6 contents ==="
+          ls -la V3.6
+
+          if [ -f V3.6/job_market_matches.csv ]; then
+            echo "=== CSV preview ==="
+            head -10 V3.6/job_market_matches.csv
+          else
+            echo "No CSV generated."
+          fi
+
+      - name: Commit results
+        run: |
+          if [ ! -f V3.6/job_market_matches.csv ]; then
+            echo "No CSV to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Preserve the newly generated V3.6 CSV
+          cp V3.6/job_market_matches.csv /tmp/job_market_matches_v3_6.csv
+
+          # Synchronize with the latest main branch
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Restore the new CSV
+          cp /tmp/job_market_matches_v3_6.csv V3.6/job_market_matches.csv
+
+          git add V3.6/job_market_matches.csv
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update V3.6 job matches"
+          git push origin HEAD:main

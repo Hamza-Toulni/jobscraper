@@ -1978,7 +1978,7 @@ def run():
 
     print()
     print("=" * 50)
-    print("JOB SCRAPER V3.3 - CAPGEMINI DISCOVERY VERSION")
+    print("JOB SCRAPER V3.4 - CAPGEMINI DISCOVERY VERSION")
     print("=" * 50)
 
     for source in SOURCES:

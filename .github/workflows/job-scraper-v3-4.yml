@@ -1,4 +1,4 @@
-name: Job Scraper V3.3
+name: Job Scraper V3.4
 
 on:
   workflow_dispatch:
@@ -22,27 +22,27 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r V3.3/requirements.txt
+        run: pip install -r V3.4/requirements.txt
 
-      - name: Run Job Scraper V3.3
-        working-directory: V3.3
-        run: python run_job_scraper_v3_3.py
+      - name: Run Job Scraper V3.4
+        working-directory: V3.4
+        run: python run_job_scraper_v3_4.py
 
       - name: Inspect results
         run: |
-          echo "=== V3.3 contents ==="
-          ls -la V3.3
+          echo "=== V3.4 contents ==="
+          ls -la V3.4
 
-          if [ -f V3.3/job_market_matches.csv ]; then
+          if [ -f V3.4/job_market_matches.csv ]; then
             echo "=== CSV preview ==="
-            head -10 V3.3/job_market_matches.csv
+            head -10 V3.4/job_market_matches.csv
           else
             echo "No CSV generated."
           fi
 
       - name: Commit results
         run: |
-          if [ ! -f V3.3/job_market_matches.csv ]; then
+          if [ ! -f V3.4/job_market_matches.csv ]; then
             echo "No CSV to commit."
             exit 0
           fi
@@ -50,22 +50,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Preserve the newly generated V3.3 CSV
-          cp V3.3/job_market_matches.csv /tmp/job_market_matches_v3_3.csv
+          # Preserve the newly generated V3.4 CSV
+          cp V3.4/job_market_matches.csv /tmp/job_market_matches_v3_4.csv
 
           # Synchronize with the latest main branch
           git fetch origin main
           git reset --hard origin/main
 
           # Restore the new CSV
-          cp /tmp/job_market_matches_v3_3.csv V3.3/job_market_matches.csv
+          cp /tmp/job_market_matches_v3_4.csv V3.4/job_market_matches.csv
 
-          git add V3.3/job_market_matches.csv
+          git add V3.4/job_market_matches.csv
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          git commit -m "Update V3.3 job matches"
+          git commit -m "Update V3.4 job matches"
           git push origin HEAD:main

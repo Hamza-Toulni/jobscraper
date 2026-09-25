@@ -1,4 +1,4 @@
-name: Job Scraper V3.1
+name: Job Scraper V3.2
 
 on:
   workflow_dispatch:
@@ -22,27 +22,27 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r V3.1/requirements.txt
+        run: pip install -r V3.2/requirements.txt
 
-      - name: Run Job Scraper V3.1
-        working-directory: V3.1
-        run: python run_job_scraper_v3_1.py
+      - name: Run Job Scraper V3.2
+        working-directory: V3.2
+        run: python run_job_scraper_v3.2.py
 
       - name: Inspect results
         run: |
-          echo "=== V3.1 contents ==="
-          ls -la V3.1
+          echo "=== V3.2 contents ==="
+          ls -la V3.2
 
-          if [ -f V3.1/job_market_matches.csv ]; then
+          if [ -f V3.2/job_market_matches.csv ]; then
             echo "=== CSV preview ==="
-            head -10 V3.1/job_market_matches.csv
+            head -10 V3.2/job_market_matches.csv
           else
             echo "No CSV generated."
           fi
 
       - name: Commit results
         run: |
-          if [ ! -f V3.1/job_market_matches.csv ]; then
+          if [ ! -f V3.2/job_market_matches.csv ]; then
             echo "No CSV to commit."
             exit 0
           fi
@@ -50,19 +50,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          cp V3.1/job_market_matches.csv /tmp/job_market_matches_v3_1.csv
+          cp V3.2/job_market_matches.csv /tmp/job_market_matches_v3_1.csv
 
           git fetch origin main
           git reset --hard origin/main
 
-          cp /tmp/job_market_matches_v3_1.csv V3.1/job_market_matches.csv
+          cp /tmp/job_market_matches_v3_1.csv V3.2/job_market_matches.csv
 
-          git add V3.1/job_market_matches.csv
+          git add V3.2/job_market_matches.csv
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
-          git commit -m "Update V3.1 job matches"
+          git commit -m "Update V3.2 job matches"
           git push origin HEAD:main

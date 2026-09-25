@@ -1532,115 +1532,165 @@ def extract_experience(text):
 # ============================================================
 
 def degree_requirement(text):
+    """Conservative education-requirement parser for V3.4."""
     lower = clean(text).lower()
-    sentences = re.split(r"(?<=[.!?;])\s+|\n+", lower)
-    contexts = []
+    sentences = re.split(r"(?<=[.!?;:])\s+|\s+[•·]\s+|\n+", lower)
 
-    edu_words = re.compile(
-        r"\b(bachelor(?:'s)?|master(?:'s)?|degree|diploma|"
-        r"bachelordiploma|masterdiploma|diplôme|diplome)\b",
-        re.I,
+    degree_terms = re.compile(
+        r"\b(bachelor(?:'s)?|master(?:'s)?|bachelordiploma|masterdiploma|"
+        r"degree|diploma|diplôme|diplome)\b", re.I
+    )
+    technical_terms = re.compile(
+        r"\b(computer science|business engineering|engineering|informatics|"
+        r"information technology|business it|data science|mathematics|"
+        r"statistics|ict|informatica|ingenieur|technical degree)\b", re.I
+    )
+    mandatory_terms = re.compile(
+        r"\b(required|mandatory|must have|must possess|you have|you hold|"
+        r"you possess|minimum requirement|minimum qualification|vereist|"
+        r"verplicht|je hebt|u hebt|doit avoir|obligatoire|requis|requise|"
+        r"vous avez|vous êtes titulaire)\b", re.I
+    )
+    preferred_terms = re.compile(
+        r"\b(preferred|preferably|ideally|nice to have|a plus|bij voorkeur|"
+        r"idealiter|de préférence|préférablement|idealement|idéalement)\b",
+        re.I
+    )
+    equivalent_terms = re.compile(
+        r"or equivalent(?: experience| qualification| background)?|"
+        r"equivalent experience|equivalent qualification|"
+        r"equivalent professional experience|or comparable experience|"
+        r"or relevant experience|gelijkwaardige ervaring|"
+        r"gelijkwaardig door ervaring|ervaring gelijkwaardig|"
+        r"of gelijkwaardig|of gelijkwaardige ervaring|"
+        r"expérience équivalente|experience équivalente|"
+        r"ou expérience équivalente|ou équivalent", re.I
     )
 
+    contexts = []
     for sentence in sentences:
-        if not edu_words.search(sentence):
+        sentence = clean(sentence)
+        if not degree_terms.search(sentence):
             continue
 
-        # Do not interpret the data-management concept "master data"
-        # as an academic Master's requirement.
-        if (
-            "master data" in sentence
-            and not re.search(
-                r"master(?:'s)?\s+(degree|diploma)|"
-                r"degree.{0,50}master|"
-                r"master.{0,50}(computer science|engineering|informatics|"
-                r"information technology|data science|mathematics|"
-                r"statistics|ict|informatica|ingenieur)",
-                sentence,
-                re.I,
+        if "master data" in sentence:
+            academic_master = re.search(
+                r"\bmaster(?:'s)?\s+(?:degree|diploma)\b|"
+                r"\b(?:degree|diploma)\b.{0,50}\bmaster\b|"
+                r"\bmaster\b.{0,60}\b(?:university|academic|education)\b",
+                sentence, re.I
             )
-        ):
-            continue
+            if not academic_master and not re.search(
+                r"\bbachelor(?:'s)?\b|\bbachelordiploma\b", sentence, re.I
+            ):
+                continue
 
         contexts.append(sentence)
 
     if not contexts:
         return "not specified"
 
-    context = " ".join(contexts)
+    classifications = []
 
-    equivalent = bool(re.search(
-        r"or equivalent|equivalent experience|equivalent qualification|"
-        r"gelijkwaardige ervaring|gelijkwaardig door ervaring|"
-        r"ervaring gelijkwaardig|of gelijkwaardig|"
-        r"expérience équivalente|experience équivalente|"
-        r"ou expérience équivalente",
-        context, re.I
-    ))
-
-    preferred = bool(re.search(
-        r"\b(preferred|preferably|ideally|nice to have)\b|"
-        r"\bbij voorkeur\b|\bde préférence\b|\bidéalement\b",
-        context, re.I
-    ))
-
-    bachelor = bool(re.search(r"\bbachelor(?:'s)?\b|\bbachelordiploma\b", context))
-    master = bool(re.search(r"\bmaster(?:'s)?\b|\bmasterdiploma\b", context))
-
-    bachelor_or_master = bool(re.search(
-        r"\bbachelor.{0,35}(?:or|of|ou|/).{0,35}master\b|"
-        r"\bmaster.{0,35}(?:or|of|ou|/).{0,35}bachelor\b",
-        context, re.I
-    ))
-
-    technical_terms = (
-        r"computer science|business engineering|engineering|informatics|"
-        r"information technology|business it|data science|mathematics|"
-        r"statistics|ict|informatica|ingenieur"
-    )
-
-    technical_degree = bool(
-        re.search(
-            rf"(?:degree|bachelor|master|diploma).{{0,120}}(?:{technical_terms})",
+    for context in contexts:
+        equivalent = bool(equivalent_terms.search(context))
+        preferred = bool(preferred_terms.search(context))
+        mandatory = bool(mandatory_terms.search(context))
+        bachelor = bool(re.search(
+            r"\bbachelor(?:'s)?\b|\bbachelordiploma\b", context, re.I
+        ))
+        master = bool(re.search(
+            r"\bmaster(?:'s)?\b|\bmasterdiploma\b", context, re.I
+        ))
+        bachelor_or_master = bool(re.search(
+            r"\bbachelor.{0,45}(?:or|of|ou|/).{0,45}master\b|"
+            r"\bmaster.{0,45}(?:or|of|ou|/).{0,45}bachelor\b",
             context, re.I
-        )
-        or re.search(
-            rf"(?:{technical_terms}).{{0,120}}(?:degree|bachelor|master|diploma)",
-            context, re.I
-        )
-    )
+        ))
+        technical = bool(technical_terms.search(context))
 
-    if bachelor_or_master:
-        if equivalent:
-            return "Bachelor's/Master's or equivalent experience"
-        if preferred:
-            return "Bachelor's/Master's preferred"
-        if technical_degree:
-            return "mandatory Bachelor/Master in technical field"
-        return "Bachelor's or Master's degree"
+        if bachelor_or_master:
+            if equivalent:
+                classifications.append("Bachelor's/Master's or equivalent experience")
+            elif preferred:
+                classifications.append("Bachelor's/Master's preferred")
+            elif technical and mandatory:
+                classifications.append("mandatory Bachelor/Master in technical field")
+            elif technical:
+                classifications.append("Bachelor's/Master's in technical field")
+            else:
+                classifications.append("Bachelor's or Master's degree")
+            continue
 
-    if technical_degree:
-        if equivalent:
-            return "technical degree or equivalent experience"
-        if preferred:
-            return "technical degree preferred"
-        return "mandatory specific technical degree"
+        if master:
+            if equivalent:
+                classifications.append("Master's or equivalent experience")
+            elif preferred:
+                classifications.append("Master's preferred")
+            elif technical and mandatory:
+                classifications.append("mandatory Master's in technical field")
+            elif mandatory:
+                classifications.append("mandatory Master's")
+            elif technical:
+                classifications.append("Master's in technical field")
+            else:
+                classifications.append("Master's degree mentioned")
+            continue
 
-    if master:
-        if equivalent:
-            return "Master's or equivalent experience"
-        if preferred:
-            return "Master's preferred"
-        return "mandatory Master's"
+        if bachelor:
+            if equivalent:
+                classifications.append("Bachelor's or equivalent experience")
+            elif preferred:
+                classifications.append("Bachelor's preferred")
+            elif technical and mandatory:
+                classifications.append("mandatory Bachelor's in technical field")
+            elif technical:
+                classifications.append("Bachelor's in technical field")
+            else:
+                classifications.append("Bachelor's degree")
+            continue
 
-    if bachelor:
-        if equivalent:
-            return "Bachelor's or equivalent experience"
-        if preferred:
-            return "Bachelor's preferred"
-        return "Bachelor's degree"
+        if technical:
+            if equivalent:
+                classifications.append("technical degree or equivalent experience")
+            elif preferred:
+                classifications.append("technical degree preferred")
+            elif mandatory:
+                classifications.append("mandatory specific technical degree")
+            else:
+                classifications.append("technical degree mentioned")
 
-    return "not specified"
+    if not classifications:
+        return "not specified"
+
+    priority = [
+        "mandatory Master's in technical field",
+        "mandatory Master's",
+        "mandatory Bachelor/Master in technical field",
+        "mandatory Bachelor's in technical field",
+        "mandatory specific technical degree",
+        "Master's or equivalent experience",
+        "Bachelor's/Master's or equivalent experience",
+        "technical degree or equivalent experience",
+        "Bachelor's or equivalent experience",
+        "Master's preferred",
+        "Bachelor's/Master's preferred",
+        "technical degree preferred",
+        "Bachelor's preferred",
+        "Master's in technical field",
+        "Bachelor's/Master's in technical field",
+        "Bachelor's in technical field",
+        "technical degree mentioned",
+        "Master's degree mentioned",
+        "Bachelor's or Master's degree",
+        "Bachelor's degree",
+    ]
+
+    for label in priority:
+        if label in classifications:
+            return label
+
+    return classifications[0]
 
 # ============================================================
 # LANGUAGES
@@ -1720,78 +1770,38 @@ def skill_information(job):
 # ============================================================
 
 def hard_filter(job):
-
     title = job["title"].lower()
+    text = (job["title"] + " " + job["description"]).lower()
 
-    text = (
-        job["title"]
-        + " "
-        + job["description"]
-    ).lower()
-
-    if any(
-        term in text
-        for term in [
-            "internship",
-            "traineeship",
-            "stage ",
-        ]
-    ):
+    if any(term in text for term in ["internship", "traineeship", "stage "]):
         return False, "internship"
 
-    if any(
-        term in title
-        for term in [
-            "financial analyst",
-            "finance analyst",
-            "financial controller",
-            "treasury analyst",
-        ]
-    ):
-        return (
-            False,
-            "finance-focused role",
-        )
+    if any(term in title for term in [
+        "financial analyst", "finance analyst",
+        "financial controller", "treasury analyst",
+    ]):
+        return False, "finance-focused role"
 
-    degree = degree_requirement(
-        text
-    )
+    degree = degree_requirement(text)
 
-    if degree == "mandatory Master's":
-
-        return (
-            False,
-            "mandatory Master's degree",
-        )
+    if degree in [
+        "mandatory Master's",
+        "mandatory Master's in technical field",
+    ]:
+        return False, "mandatory Master's degree"
 
     if degree in [
         "mandatory specific technical degree",
         "mandatory Bachelor/Master in technical field",
+        "mandatory Bachelor's in technical field",
     ]:
+        return False, "mandatory specific technical/ICT degree"
 
-        return (
-            False,
-            "mandatory specific "
-            "technical/ICT degree",
-        )
-
-    years = extract_experience(
-        text
-    )
-
-    if (
-        years is not None
-        and years >= 8
-    ):
-
-        return (
-            False,
-            f"requires {years}+ years "
-            f"relevant experience",
-        )
+    years = extract_experience(text)
+    if years is not None and years >= 8:
+        return False, f"requires {years}+ years relevant experience"
 
     return True, "passed"
-
 
 # ============================================================
 # MATCH SCORE
@@ -1799,21 +1809,37 @@ def hard_filter(job):
 
 def score(job):
     text = (job["title"] + " " + job["description"]).lower()
+    title = job["title"].lower()
     fam = job["job_family"]
     reasons = [fam]
 
     family_base = {
-        "HR Data / People Analytics": 72,
-        "Data Analyst": 68,
-        "BI / Power BI": 68,
-        "Data Governance / Quality": 64,
-        "Reporting": 64,
-        "Data / Analytics Consulting": 60,
-        "Functional / Business Data Analysis": 60,
-        "Data Engineering (stretch)": 48,
+        "HR Data / People Analytics": 78,
+        "Data Analyst": 76,
+        "BI / Power BI": 74,
+        "Reporting": 68,
+        "Data Governance / Quality": 66,
+        "Functional / Business Data Analysis": 66,
+        "Data / Analytics Consulting": 62,
+        "Data Engineering (stretch)": 50,
     }
 
     value = family_base.get(fam, 50)
+
+    if (
+        ("data analyst" in title or "data analist" in title)
+        and ("bi " in title or "business intelligence" in title or "power bi" in title)
+    ):
+        value += 6
+        reasons.append("core BI/Data Analyst title")
+
+    if any(term in title for term in [
+        "hr data", "hr analytics", "people analytics",
+        "workforce analytics", "hris",
+    ]):
+        value += 5
+        reasons.append("HR/People Data priority")
+
     matched, gaps = skill_information(job)
 
     bonuses = {
@@ -1826,14 +1852,21 @@ def score(job):
         "data modelling": 0,
     }
 
-    value += min(18, sum(bonuses.get(skill, 0) for skill in matched))
+    value += min(16, sum(bonuses.get(skill, 0) for skill in matched))
 
     if matched:
         reasons.append("matched: " + ", ".join(matched[:6]))
 
     if gaps:
-        value -= min(12, len(gaps) * 2)
+        value -= min(10, len(gaps) * 2)
         reasons.append("potential gaps: " + ", ".join(gaps[:5]))
+
+    if "sap" in title and "master data" in title:
+        value -= 24
+        reasons.append("SAP Master Data specialization")
+    elif "master data" in title:
+        value -= 10
+        reasons.append("Master Data specialization")
 
     years = extract_experience(text)
 
@@ -1848,33 +1881,41 @@ def score(job):
         elif years <= 3:
             value += 4
 
-    title = job["title"].lower()
-
     if "senior" in title:
-        value -= 7
+        value -= 8
         reasons.append("senior title")
-
     if "expert" in title:
-        value -= 9
+        value -= 10
         reasons.append("expert title")
-
-    if "manager" in title or "lead" in title:
-        value -= 12
+    if "manager" in title:
+        value -= 16
+        reasons.append("manager title")
+    if "lead" in title:
+        value -= 16
         reasons.append("leadership title")
-
     if "architect" in title:
-        value -= 12
+        value -= 16
         reasons.append("architect title")
 
     degree = degree_requirement(text)
 
     if "equivalent experience" in degree.lower():
-        value -= 2
+        value -= 1
         reasons.append(degree)
     elif degree in ["Bachelor's degree", "Bachelor's or Master's degree"]:
-        value -= 3
+        value -= 2
+        reasons.append(degree)
+    elif degree in [
+        "Bachelor's in technical field",
+        "Bachelor's/Master's in technical field",
+        "Master's in technical field",
+        "technical degree mentioned",
+        "Master's degree mentioned",
+    ]:
+        value -= 8
         reasons.append(degree)
     elif "preferred" in degree.lower():
+        value -= 1
         reasons.append(degree)
 
     location = job.get("location", "").lower()
@@ -1885,7 +1926,6 @@ def score(job):
     ]):
         value += 5
         reasons.append("Brussels area")
-
     elif any(place in location for place in [
         "antwerp", "antwerpen", "brugge", "bruges",
         "west flanders", "west-vlaanderen",
@@ -1978,7 +2018,7 @@ def run():
 
     print()
     print("=" * 50)
-    print("JOB SCRAPER V3.4 - CAPGEMINI DISCOVERY VERSION")
+    print("JOB SCRAPER V3.4 - MATCHING QUALITY VERSION")
     print("=" * 50)
 
     for source in SOURCES:

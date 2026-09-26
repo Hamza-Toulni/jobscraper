@@ -260,11 +260,14 @@ def clean(value):
 # V5.3 NETWORK RELIABILITY
 # ============================================================
 
-def get_with_retry(url, *, timeout=TIMEOUT, attempts=3, backoff=2.0, **kwargs):
+def get_with_retry(url, *, timeout=None, attempts=3, backoff=2.0, **kwargs):
     """
     Small reliability wrapper for transient network failures.
     Returns a Response or raises the last requests exception.
     """
+    if timeout is None:
+        timeout = globals().get("TIMEOUT", 20)
+
     last_exc = None
     for attempt in range(1, attempts + 1):
         try:

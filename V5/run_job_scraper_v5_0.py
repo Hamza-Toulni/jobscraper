@@ -3404,9 +3404,9 @@ def run():
             )
             if normalized_location:
                 job["location"] = normalized_location
-                refreshed = location_intelligence(
+                refreshed = classify_brussels_distance(
                     job.get("location", ""),
-                    job.get("work_mode", ""),
+                    job.get("description", ""),
                 )
                 job.update(refreshed)
 
@@ -3419,9 +3419,9 @@ def run():
             if fallback_location and not clean(job.get("location", "")):
                 job["location"] = fallback_location
                 job["location_resolution_source"] = fallback_source
-                refreshed = location_intelligence(
+                refreshed = classify_brussels_distance(
                     fallback_location,
-                    job.get("work_mode", ""),
+                    job.get("description", ""),
                 )
                 job.update(refreshed)
 

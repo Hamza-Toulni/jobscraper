@@ -3445,13 +3445,7 @@ def run():
             # V5.0 hard rule: explicit foreign vacancies must not enter the
             # Belgian shortlist. The 30 km rule itself remains report-only.
             if country_status == "OUTSIDE_BELGIUM":
-                rejected.append(
-                    (
-                        job.get("company", ""),
-                        job.get("title", ""),
-                        f"outside Belgium ({country})",
-                    )
-                )
+                rejected += 1
                 print(
                     f"  REJECT LOCATION: {job.get('title','')} -> "
                     f"outside Belgium ({country})"

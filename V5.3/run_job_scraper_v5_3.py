@@ -94,6 +94,7 @@ SOURCES = [
         "job_url_regex": r"/offre-de-emploi/[^?#]+(?:\.aspx)?$",
     },
     {
+<<<<<<< HEAD
         "company": "LACO",
         "url": "https://www.laco.be/vacancy/",
         "domain": "laco.be",
@@ -3811,3 +3812,5 @@ def run():
 
 if __name__ == "__main__":
     run()
+=======
+>>>>>>> a3c088d47c01e0c1bf92cc534d46d89ae5f86eba

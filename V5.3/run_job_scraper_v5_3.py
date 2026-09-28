@@ -3648,7 +3648,7 @@ def run():
             status = "HEALTHY" if targets > 0 else "PARTIAL"
             print(
                 f"{status:10} | {company:<22} | scanned=?   | "
-                f"targets={targets:<3} | accepted={ok_count:<3} | rejected={rejected_count} | loc_rejected={location_rejections_v51.get(name, 0)}"
+                f"targets={targets:<3} | accepted={ok_count:<3} | rejected={rejected_count} | loc_rejected={location_rejections_v51.get(company, 0)}"
             )
 
     print()

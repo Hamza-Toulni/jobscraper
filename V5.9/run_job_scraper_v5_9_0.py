@@ -1360,6 +1360,16 @@ def vacancy_page_evidence(soup, source, url):
     structured vacancy evidence. Visible-page fallback must provide multiple
     independent job signals.
     """
+
+    # Corrected V5.9.0 — Lever ATS detail URLs are strong vacancy evidence.
+    # AE's Lever pages were discovered correctly but failed the generic
+    # apply/vacancy text heuristic.
+    parsed_url = urlparse(url)
+    if parsed_url.netloc.lower() == "jobs.lever.co":
+        parts = [p for p in parsed_url.path.split("/") if p]
+        if len(parts) >= 2:
+            return True, "validated Lever vacancy"
+
     page_text = clean(soup.get_text(" ", strip=True)).lower()
     title = page_title(soup).lower()
     path = urlparse(url).path.lower()
@@ -4368,12 +4378,11 @@ def discover_ae_lever_v589(source):
 
     api_url = "https://api.lever.co/v0/postings/ae-2?mode=json"
     try:
-        response = SESSION.get(
+        response = get_with_retry(
             api_url,
-            timeout=REQUEST_TIMEOUT,
+            timeout=30,
             headers={"Accept": "application/json"},
         )
-        response.raise_for_status()
         payload = response.json()
         if isinstance(payload, list):
             for item in payload:
@@ -4480,7 +4489,7 @@ def discover_rail_v590(source):
     opened = 0
 
     for root in roots:
-        for startrow in (0, 25, 50, 75):
+        for startrow in (0, 25):
             sep = "&" if "?" in root else "?"
             page = root if startrow == 0 else f"{root}{sep}startrow={startrow}"
             try:
@@ -4800,7 +4809,27 @@ def process_v56_expansion_source(source):
             rejection_reason = ""
 
         if accepted_decision:
+            # Corrected V5.9.0 — score at the final acceptance boundary.
+            # This prevents compatibility decisions such as "passed" from
+            # reaching the CSV with a synthetic score of zero.
+            if score_value is None or float(score_value or 0) <= 0:
+                try:
+                    scored_copy = dict(job)
+                    apply_profile_scoring(scored_copy)
+                    candidate_score = scored_copy.get(
+                        "match_score",
+                        scored_copy.get("score", 0),
+                    )
+                    if candidate_score is not None:
+                        score_value = int(round(float(candidate_score)))
+                except Exception as exc:
+                    print(f"  V5.9.0 final scoring fallback skipped for {title}: {exc}")
+
+            # If the normal scorer stores its result under match_score, keep
+            # both representations synchronized for expansion jobs.
             job["score"] = score_value
+            if "match_score" in job or score_value:
+                job["match_score"] = score_value
             job["rejection_reason"] = rejection_reason
             accepted_rows.append(job)
             print(f"  ACCEPT: {title} -> score {score_value}")
@@ -5484,6 +5513,24 @@ def v590_consolidation_selfcheck():
     expansion_src = inspect.getsource(process_v56_expansion_source)
     if "scoring fallback" not in expansion_src:
         raise AssertionError("V5.9.0 expansion scoring fallback missing")
+
+
+    # Corrected V5.9.0: Lever detail pages must bypass the generic evidence
+    # heuristic, otherwise real AE vacancies are discarded.
+    lever_test_soup = BeautifulSoup(
+        "<html><head><title>Data Engineer</title></head><body>Engineering role</body></html>",
+        "html.parser",
+    )
+    lever_ok, _ = vacancy_page_evidence(
+        lever_test_soup,
+        {"company": "AE", "type": "generic"},
+        "https://jobs.lever.co/ae-2/12345678-abcd",
+    )
+    if not lever_ok:
+        raise AssertionError("V5.9.0 Lever vacancy validation failed")
+
+    if "REQUEST_TIMEOUT" in inspect.getsource(discover_ae_lever_v590):
+        raise AssertionError("V5.9.0 AE adapter still uses undefined REQUEST_TIMEOUT")
 
     print("V5.9.0 consolidation/recovery self-check: PASSED")
 

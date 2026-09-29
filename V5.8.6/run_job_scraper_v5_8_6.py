@@ -1997,7 +1997,7 @@ def discover_akkodis(source):
         # Current Belgian detail pattern, e.g.
         # /en-be/careers/jobs/data-analyst/2026-34885
         return bool(re.search(
-            r"/(?:en-be/careers|nl-be/werken-bij)/jobs/[^/]+/\\d{4}-\\d+/?$",
+            r"/(?:en-be/careers|nl-be/werken-bij)/jobs/[^/]+/\d{4}-\d+/?$",
             path,
         ))
 
@@ -2689,10 +2689,8 @@ def discover(source):
         if recovered is not None:
             return recovered
 
-    if source["company"] in {"Akkodis"}:
-        recovered = discover_recovery_v43(source)
-        if recovered is not None:
-            return recovered
+    if source["company"] == "Akkodis":
+        return discover_akkodis(source)
 
 
     source_type = source["type"]
@@ -4988,7 +4986,35 @@ def v586_akkodis_recovery_selfcheck():
     print("V5.8.6 Akkodis URL-pattern self-check: PASSED")
 
 
+
+def v586_akkodis_dispatch_selfcheck():
+    import inspect
+
+    router_source = inspect.getsource(discover)
+
+    if 'source["company"] == "Akkodis"' not in router_source:
+        raise AssertionError("V5.8.6 Akkodis dispatch self-check failed: dedicated route missing")
+
+    if "return discover_akkodis(source)" not in router_source:
+        raise AssertionError("V5.8.6 Akkodis dispatch self-check failed: discover_akkodis not called")
+
+    # The legacy V4.3 route must not be used for Akkodis anymore.
+    akk_section = router_source.split('source["company"] == "Akkodis"', 1)[1][:180]
+    if "discover_recovery_v43" in akk_section:
+        raise AssertionError("V5.8.6 Akkodis dispatch self-check failed: legacy V4.3 route still active")
+
+    # Validate the live URL shape used by the dedicated adapter.
+    sample_path = "/en-be/careers/jobs/data-analyst/2026-34885"
+    pattern = r"/(?:en-be/careers|nl-be/werken-bij)/jobs/[^/]+/\d{4}-\d+/?$"
+    if not re.search(pattern, sample_path):
+        raise AssertionError("V5.8.6 Akkodis URL regex self-check failed")
+
+    print("V5.8.6 Akkodis dispatch self-check: PASSED")
+
+
+
 def run():
+    v586_akkodis_dispatch_selfcheck()
     v586_akkodis_recovery_selfcheck()
     v586_rail_title_recovery_selfcheck()
     v586_deep_recovery_selfcheck()

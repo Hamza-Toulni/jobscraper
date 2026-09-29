@@ -1962,16 +1962,23 @@ def indexed_discovery_v55(queries, domains, max_results=30):
 
 
 def discover_akkodis(source):
-    print("  strategy: Akkodis V5.8.0 official + resilient indexed discovery")
+    print("  strategy: Akkodis V5.8.1 official + resilient indexed discovery")
 
     candidates = []
+
+    AKKODIS_JOB_RE = re.compile(
+        r"/en-be/careers/jobs/[^/?#]+/[^/?#]+/?$",
+        re.I,
+    )
+
     entry_pages = [
         "https://www.akkodis.com/en-be/careers",
-        "https://www.akkodis.com/en/careers",
+        "https://www.akkodis.com/en-be/careers/jobs",
     ]
 
     direct = 0
     pages_ok = 0
+
     for entry in entry_pages:
         try:
             html = fetch(entry)
@@ -1982,6 +1989,7 @@ def discover_akkodis(source):
                 normalize_url(a["href"], entry)
                 for a in soup.find_all("a", href=True)
             ]
+
             raw_urls += [
                 raw.replace("\\/", "/")
                 for raw in re.findall(
@@ -1994,19 +2002,27 @@ def discover_akkodis(source):
             for url in raw_urls:
                 if "akkodis.com" not in urlparse(url).netloc.lower():
                     continue
+
                 path = urlparse(url).path.lower()
-                if not re.search(r"/en-be/careers/jobs/[^/]+/\d+/?$", path):
+
+                if not AKKODIS_JOB_RE.search(path):
                     continue
-                hay = clean(path.replace("-", " ").replace("/", " "))
-                if looks_targeted(hay):
-                    candidates.append((url, ""))
-                    direct += 1
+
+                candidates.append((url, ""))
+                direct += 1
+
         except Exception as exc:
-            print("  Akkodis official entry skipped:", entry, "->", exc)
+            print(
+                "  Akkodis official entry skipped:",
+                entry,
+                "->",
+                exc,
+            )
+
         time.sleep(0.25)
 
     print("  official pages opened:", pages_ok)
-    print("  direct target candidates:", direct)
+    print("  direct vacancy candidates:", direct)
 
     queries = [
         'site:akkodis.com/en-be/careers/jobs/ "Data Analyst"',
@@ -2022,43 +2038,86 @@ def discover_akkodis(source):
     ]
 
     indexed_found = indexed_discovery_v55(
-        queries, domains=["akkodis.com"], max_results=40
+        queries,
+        domains=["akkodis.com"],
+        max_results=40,
     )
 
     indexed = 0
+
     for url, title in indexed_found:
         path = urlparse(url).path.lower()
-        if not re.search(r"/en-be/careers/jobs/[^/]+/\d+/?$", path):
+
+        if not AKKODIS_JOB_RE.search(path):
             continue
-        hay = clean(title + " " + path.replace("-", " ").replace("/", " "))
+
+        hay = clean(
+            title + " " +
+            path.replace("-", " ").replace("/", " ")
+        )
+
         if not looks_targeted(hay):
             continue
+
         candidates.append((url, title))
         indexed += 1
 
     print("  indexed target candidates:", indexed)
 
+    # Deduplicate first.
     unique = {}
+
     for url, title in candidates:
         p = urlparse(url)
-        canonical = p._replace(query="", fragment="").geturl()
-        unique[canonical] = title
+        canonical = p._replace(
+            query="",
+            fragment="",
+        ).geturl()
 
-    result = list(unique.items())
+        # Preserve a useful indexed title if we have one.
+        if canonical not in unique or (
+            title and not unique[canonical]
+        ):
+            unique[canonical] = title
+
+    # Now apply target filtering to direct discoveries.
+    result = []
+
+    for url, title in unique.items():
+        path = urlparse(url).path
+
+        hay = clean(
+            title + " " +
+            path.replace("-", " ").replace("/", " ")
+        )
+
+        if looks_targeted(hay):
+            result.append((url, title))
+
     print("  relevant vacancy links:", len(result))
 
     DISCOVERY_HEALTH["Akkodis"] = {
-        "status": "HEALTHY" if result else ("DEGRADED" if pages_ok else "BROKEN"),
-        "scanned": len(result),
+        "status": (
+            "HEALTHY"
+            if result
+            else "DEGRADED"
+            if pages_ok
+            else "BROKEN"
+        ),
+        "scanned": len(unique),
         "queued": len(result),
         "extracted": 0,
         "reason": (
-            "" if result
-            else "official pages reachable but no target vacancy URLs discovered"
+            ""
+            if result
+            else
+            "official pages reachable but no target vacancy URLs discovered"
             if pages_ok
-            else "official pages and indexed recovery unavailable"
+            else
+            "official pages and indexed recovery unavailable"
         ),
     }
+
     return result
 
 

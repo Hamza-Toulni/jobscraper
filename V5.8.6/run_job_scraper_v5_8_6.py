@@ -4340,7 +4340,7 @@ def process_v56_expansion_source(source):
             "rejected": 0,
             "reason": "temporarily parked; low current priority",
         }
-        return [], []
+        return [], [], []
 
     v576_sd_worx = (company == "SD Worx")
     links = discover_v56_generic(source)

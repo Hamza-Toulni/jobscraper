@@ -4295,7 +4295,8 @@ def process_v56_expansion_source(source):
         decision = evaluate_expansion_job_v573(job)
         accepted_decision, score_value, rejection_reason = normalize_expansion_decision_v577(decision)
         if accepted_decision:
-            job.update(decision)
+            job["score"] = score_value
+            job["rejection_reason"] = rejection_reason
             accepted_rows.append(job)
             print(f"  ACCEPT: {title} -> score {score_value}")
         else:

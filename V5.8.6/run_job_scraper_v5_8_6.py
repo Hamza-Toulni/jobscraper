@@ -4329,6 +4329,19 @@ def extract_v562_job_page(company, url, html, listing_title=""):
 def process_v56_expansion_source(source):
     """Discover, validate and score one V5.8.6 expansion company."""
     company = source["company"]
+    if company == "Proximus":
+        print("  strategy: V5.8.6 source intentionally parked")
+        DISCOVERY_HEALTH[company] = {
+            "status": "IGNORED",
+            "inventory": 0,
+            "targets": 0,
+            "extracted": 0,
+            "accepted": 0,
+            "rejected": 0,
+            "reason": "temporarily parked; low current priority",
+        }
+        return [], []
+
     v576_sd_worx = (company == "SD Worx")
     links = discover_v56_generic(source)
 
@@ -5411,12 +5424,13 @@ def run():
         diagnostic = DISCOVERY_HEALTH.get(company)
 
         if diagnostic:
-            status = diagnostic["status"]
-            inventory = diagnostic["inventory"]
+            status = diagnostic.get("status", "UNKNOWN")
+            inventory = diagnostic.get("inventory", diagnostic.get("scanned", 0) or 0)
+            queued = diagnostic.get("targets", diagnostic.get("queued", 0) or 0)
             extracted = diagnostic.get("extracted", targets)
             print(
                 f"{status:10} | {company:<22} | scanned={inventory:<3} | "
-                f"queued={diagnostic['targets']:<3} | extracted={extracted:<3} | "
+                f"queued={queued:<3} | extracted={extracted:<3} | "
                 f"accepted={ok_count:<3} | rejected={rejected_count}"
             )
         else:

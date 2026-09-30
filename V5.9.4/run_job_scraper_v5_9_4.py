@@ -5684,7 +5684,10 @@ def v590_consolidation_selfcheck():
         raise AssertionError("V5.9.4 obsolete apply_profile_scoring fallback still present")
 
     evaluator_src = inspect.getsource(evaluate_expansion_job_v573)
-    if "passed, reason = hard_filter(job)" not in evaluator_src or "score(job)" not in evaluator_src:
+    if (
+        "passed, reason = hard_filter(job)" not in evaluator_src
+        or "v594_score_job(job)" not in evaluator_src
+    ):
         raise AssertionError("V5.9.4 canonical expansion evaluator missing")
 
 

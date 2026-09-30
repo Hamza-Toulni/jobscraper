@@ -5529,7 +5529,7 @@ def v590_consolidation_selfcheck():
     if not lever_ok:
         raise AssertionError("V5.9.0 Lever vacancy validation failed")
 
-    if "REQUEST_TIMEOUT" in inspect.getsource(discover_ae_lever_v590):
+    if "REQUEST_TIMEOUT" in inspect.getsource(discover_ae_lever_v589):
         raise AssertionError("V5.9.0 AE adapter still uses undefined REQUEST_TIMEOUT")
 
     print("V5.9.0 consolidation/recovery self-check: PASSED")

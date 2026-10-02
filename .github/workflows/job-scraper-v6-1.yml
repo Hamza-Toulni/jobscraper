@@ -1,87 +1,119 @@
 name: Job Scraper V6.1
 
 on:
+  # Allows you to run V6.1 manually at any time
   workflow_dispatch:
+
+  # Automatic runs in Belgian local time.
+  # Europe/Brussels automatically handles CET/CEST.
   schedule:
-    # GitHub cron is UTC.
-    # These four UTC times cover both CET and CEST.
-    # The Brussels-time gate below allows only 10:00 and 20:00 local time.
-    - cron: "0 8,9,18,19 * * *"
+    - cron: "0 10 * * *"
+      timezone: "Europe/Brussels"
+
+    - cron: "0 20 * * *"
+      timezone: "Europe/Brussels"
 
 permissions:
   contents: write
+
+# Prevent two V6.1 scrapers from running simultaneously
+concurrency:
+  group: job-scraper-v6-1
+  cancel-in-progress: false
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check Brussels schedule
-        id: schedule_check
-        shell: bash
-        run: |
-          # Manual runs should always proceed.
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "run_scraper=true" >> "$GITHUB_OUTPUT"
-            echo "Manual run: scraper enabled."
-            exit 0
-          fi
-
-          BRUSSELS_HOUR=$(TZ=Europe/Brussels date +%H)
-
-          echo "Current Brussels hour: $BRUSSELS_HOUR"
-
-          if [ "$BRUSSELS_HOUR" = "10" ] || [ "$BRUSSELS_HOUR" = "20" ]; then
-            echo "run_scraper=true" >> "$GITHUB_OUTPUT"
-            echo "Scheduled Brussels-time run enabled."
-          else
-            echo "run_scraper=false" >> "$GITHUB_OUTPUT"
-            echo "DST shadow run: scraper skipped."
-          fi
-
+      # --------------------------------------------------------
+      # 1. Checkout repository
+      # --------------------------------------------------------
       - name: Checkout repository
-        if: steps.schedule_check.outputs.run_scraper == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # --------------------------------------------------------
+      # 2. Set up Python
+      # --------------------------------------------------------
       - name: Set up Python
-        if: steps.schedule_check.outputs.run_scraper == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
+      # --------------------------------------------------------
+      # 3. Install dependencies
+      # --------------------------------------------------------
       - name: Install dependencies
-        if: steps.schedule_check.outputs.run_scraper == 'true'
-        run: pip install -r V6.1/requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r V6.1/requirements.txt
 
+      # --------------------------------------------------------
+      # 4. Run V6.1 scraper
+      # --------------------------------------------------------
       - name: Run Job Scraper V6.1
-        if: steps.schedule_check.outputs.run_scraper == 'true'
         working-directory: V6.1
         run: python run_job_scraper_v6_1.py
 
+      # --------------------------------------------------------
+      # 5. Inspect generated results
+      # --------------------------------------------------------
       - name: Inspect results
-        if: steps.schedule_check.outputs.run_scraper == 'true'
         run: |
-          echo "=== V6.1 contents ==="
+          echo "======================================"
+          echo "V6.1 GENERATED FILES"
+          echo "======================================"
           ls -la V6.1
 
+          echo ""
+          echo "======================================"
+          echo "CURRENT JOB MATCHES"
+          echo "======================================"
+
           if [ -f V6.1/job_market_matches.csv ]; then
-            echo "=== Current matches preview ==="
+            echo "Number of lines:"
+            wc -l V6.1/job_market_matches.csv
+
+            echo ""
+            echo "Preview:"
             head -10 V6.1/job_market_matches.csv
           else
             echo "No current matches CSV generated."
           fi
 
+          echo ""
+          echo "======================================"
+          echo "JOB HISTORY"
+          echo "======================================"
+
           if [ -f V6.1/job_market_history.csv ]; then
-            echo "=== History preview ==="
+            echo "Number of lines:"
+            wc -l V6.1/job_market_history.csv
+
+            echo ""
+            echo "Preview:"
             head -10 V6.1/job_market_history.csv
           else
             echo "No history CSV generated."
           fi
 
+          echo ""
+          echo "======================================"
+          echo "SQLITE HISTORY DATABASE"
+          echo "======================================"
+
+          if [ -f V6.1/job_market_history.db ]; then
+            ls -lh V6.1/job_market_history.db
+          else
+            echo "History database was not generated."
+          fi
+
+      # --------------------------------------------------------
+      # 6. Commit results and persistent history
+      # --------------------------------------------------------
       - name: Commit results
-        if: steps.schedule_check.outputs.run_scraper == 'true'
         run: |
           if [ ! -f V6.1/job_market_matches.csv ]; then
             echo "No current matches CSV to commit."
@@ -96,7 +128,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Preserve generated files before synchronizing.
+          # ----------------------------------------------------
+          # Preserve files generated by this run
+          # ----------------------------------------------------
+
           cp V6.1/job_market_matches.csv /tmp/job_market_matches.csv
           cp V6.1/job_market_history.db /tmp/job_market_history.db
 
@@ -104,11 +139,17 @@ jobs:
             cp V6.1/job_market_history.csv /tmp/job_market_history.csv
           fi
 
-          # Synchronize with latest main.
+          # ----------------------------------------------------
+          # Synchronize with latest main branch
+          # ----------------------------------------------------
+
           git fetch origin main
           git reset --hard origin/main
 
-          # Restore generated files.
+          # ----------------------------------------------------
+          # Restore files generated by this run
+          # ----------------------------------------------------
+
           cp /tmp/job_market_matches.csv V6.1/job_market_matches.csv
           cp /tmp/job_market_history.db V6.1/job_market_history.db
 
@@ -116,7 +157,10 @@ jobs:
             cp /tmp/job_market_history.csv V6.1/job_market_history.csv
           fi
 
-          # Stage persistent V6.1 output.
+          # ----------------------------------------------------
+          # Stage current results + persistent history
+          # ----------------------------------------------------
+
           git add V6.1/job_market_matches.csv
           git add V6.1/job_market_history.db
 
@@ -124,10 +168,19 @@ jobs:
             git add V6.1/job_market_history.csv
           fi
 
+          # ----------------------------------------------------
+          # Commit only when something changed
+          # ----------------------------------------------------
+
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
 
           git commit -m "Update V6.1 job matches and history"
+
+          # ----------------------------------------------------
+          # Push results
+          # ----------------------------------------------------
+
           git push origin HEAD:main

@@ -9,7 +9,11 @@ on:
 
     - cron: "10 20 * * *"
       timezone: "Europe/Brussels"
-       - cron: "02 22 * * *"
+      
+    - cron: "02 22 * * *"
+      timezone: "Europe/Brussels"
+
+    - cron: "15 22 * * *"
       timezone: "Europe/Brussels"
 
 permissions:

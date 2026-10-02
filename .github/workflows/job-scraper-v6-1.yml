@@ -14,7 +14,7 @@ on:
     - cron: "10 22 * * *"
       timezone: "Europe/Brussels"
     
-    # TEMPORARY TEST - 22:10 Brussels time
+    # TEMPORARY TEST - 22:15 Brussels time
     - cron: "15 22 * * *"
       timezone: "Europe/Brussels"
 

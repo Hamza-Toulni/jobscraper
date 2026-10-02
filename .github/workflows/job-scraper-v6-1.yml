@@ -10,12 +10,12 @@ on:
     - cron: "10 20 * * *"
       timezone: "Europe/Brussels"
       
-    # TEMPORARY TEST - 22:10 Brussels time
-    - cron: "10 22 * * *"
+    # TEMPORARY TEST - 22:30 Brussels time
+    - cron: "30 22 * * *"
       timezone: "Europe/Brussels"
     
-    # TEMPORARY TEST - 22:20 Brussels time
-    - cron: "20 22 * * *"
+    # TEMPORARY TEST - 22:40 Brussels time
+    - cron: "40 22 * * *"
       timezone: "Europe/Brussels"
 
 permissions:

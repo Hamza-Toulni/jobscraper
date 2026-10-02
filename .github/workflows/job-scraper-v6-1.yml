@@ -1,22 +1,20 @@
 name: Job Scraper V6.1
 
 on:
-  # Allows you to run V6.1 manually at any time
   workflow_dispatch:
 
-  # Automatic runs in Belgian local time.
-  # Europe/Brussels automatically handles CET/CEST.
   schedule:
-    - cron: "0 10 * * *"
+    - cron: "10 10 * * *"
       timezone: "Europe/Brussels"
 
-    - cron: "0 20 * * *"
+    - cron: "10 20 * * *"
+      timezone: "Europe/Brussels"
+       - cron: "02 22 * * *"
       timezone: "Europe/Brussels"
 
 permissions:
   contents: write
 
-# Prevent two V6.1 scrapers from running simultaneously
 concurrency:
   group: job-scraper-v6-1
   cancel-in-progress: false
